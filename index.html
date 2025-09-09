@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB Web Query Tool 查詢工具</title>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 2rem; background-color: #f8f9fa; color: #212529; display: flex; justify-content: center; }
+        .container { max-width: 1200px; width: 100%; background: #ffffff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px-6px rgba(0, 0, 0, 0.1); }
+        h3 { color: #0056b3; border-bottom: 2px solid #dee2e6; padding-bottom: 0.5rem; margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        .section { margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e9ecef; border-radius: 6px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; } /* 調整 minmax 以容納更多欄位 */
+        .form-group { display: flex; flex-direction: column; }
+        .form-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        label { margin-bottom: 0.5rem; font-weight: 600; color: #495057; }
+        input, select, textarea { width: 100%; padding: 0.5rem; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; transition: border-color 0.2s, box-shadow 0.2s; }
+        input:focus, select:focus, textarea:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); }
+        textarea { resize: vertical; min-height: 200px; font-family: "Courier New", Courier, monospace; }
+        
+        /* === 按鈕樣式修改 === */
+        button { background-color: #007bff; color: white; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background-color 0.2s; white-space: nowrap; }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        
+        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+        .format-btn { background-color: #6c757d; } /* 格式按鈕的預設顏色 */
+        .format-btn:hover:not(:disabled) { background-color: #5a6268; }
+        .format-btn.active { background-color: #007bff; } /* Active 按鈕高亮 */
+        .format-btn.active:hover:not(:disabled) { background-color: #0056b3; }
+
+        .btn-success { background-color: #28a745; } .btn-success:hover:not(:disabled) { background-color: #218838; }
+        .btn-danger { background-color: #dc3545; } .btn-danger:hover:not(:disabled) { background-color: #c82333; }
+        .btn-info { background-color: #17a2b8; } .btn-info:hover:not(:disabled) { background-color: #138496; }
+        
+        .result-container { margin-top: 1rem; }
+        .result-box { margin-top: 1rem; padding: 1rem; border-radius: 4px; font-family: "Courier New", Courier, monospace; word-wrap: break-word; max-height: 500px; overflow: auto; background-color: #e9ecef; border: 1px solid #ced4da; }
+        .result-box.rowset-view { white-space: pre; overflow-x: auto; }
+        .result-box.success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+        .result-box.error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+        
+        table.clean-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        table.clean-table th, table.clean-table td { border: 1px solid #dee2e6; padding: 8px; text-align: left; vertical-align: top; }
+        table.clean-table thead th { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header class="text-center mb-8">
+        <h1 style="text-align: center;" class="text-4xl font-bold text-gray-800">DB Web SQL Tool 查詢工具</h1>
+    </header>
+    <div class="section">
+        <h3>
+            <span>1. DB 連線設定</span>
+                <div style="margin-left: auto;">
+                    <select id="profiles-select" style="width: 200px;"><option value="">-- 新增設定檔 --</option></select>
+                    <button id="save-profile-btn" class="btn-sm btn-success">儲存</button>
+                    <button id="update-profile-btn" class="btn-sm btn-info">修改</button>
+                    <button id="delete-profile-btn" class="btn-sm btn-danger">刪除</button>
+                </div>
+        </h3>
+        <div class="form-row" style="justify-content: space-between;">
+            <div class="form-grid" style="flex-grow: 1;">
+                <div class="form-group"><label for="hostname">IP/Hostname</label><input type="text" id="hostname"></div>
+                <div class="form-group"><label for="sid">SID</label><input type="text" id="sid"></div>
+                <div class="form-group"><label for="user">帳號</label><input type="text" id="user"></div>
+                <div class="form-group"><label for="password">密碼</label><input type="password" id="password"></div>
+                <div class="form-group">
+                    <label for="db-type">DB Type</label>
+                    <select id="db-type">
+                        <option value="ORA">Oracle</option>
+                        <option value="SQL">MS-SQL Server</option>
+                        <option value="POST">PostgreSQL</option>
+                        <option value="LITE">SQLLite</option>
+                    </select>
+                </div>
+                <div class="form-group"><label for="port">Port</label><input type="number" id="port"></div>
+            </div>
+        </div>
+        <div class="form-row" style="margin-top: 1rem;">
+            <button id="test-conn-btn">測試連線</button>
+            <div id="conn-result" class="result-box" style="margin-top:0; padding: 0.5rem; display: none; flex-grow: 1;"></div>
+        </div>
+    </div>
+    <div class="section">
+        <h3>
+            <span>2. 執行 SQL Statement</span>
+            <div class="form-row">
+                <select id="sql-select" style="width: 200px;"><option value="">-- 新增 SQL --</option></select>
+                <button id="save-sql-btn" class="btn-sm btn-success">儲存</button>
+                <button id="update-sql-btn" class="btn-sm btn-info">修改</button>
+                <button id="delete-sql-btn" class="btn-sm btn-danger">刪除</button>
+            </div>
+        </h3>
+        <textarea id="sql-statement" placeholder="例如：SELECT * FROM v$version"></textarea>
+        <div class="form-row" style="margin-top: 1rem;">
+            <button id="execute-sql-btn">執行查詢</button>
+            <label for="max-rows" style="margin-left: 1rem; margin-bottom: 0;">Max Rows:</label>
+            <input type="number" id="max-rows" value="200" style="width: 80px;">
+            <div id="format-controls" style="margin-left: auto;">
+                <button id="format-rowset" class="format-btn btn-sm">Row Set</button>
+                <button id="format-datatables" class="format-btn btn-sm">DataTables</button>
+                <button id="format-html" class="format-btn btn-sm">HTML Table</button>
+                <button id="format-json" class="format-btn btn-sm">JSON</button>
+                <button id="format-csv" class="btn-sm btn-success">Export CSV</button>
+            </div>
+        </div>
+    </div>
+    <div id="result-container" class="result-container"></div>
+</div>
+
+<!-- jQuery and DataTables JS -->
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- STATE MANAGEMENT ---
+    let profiles = [];
+    let sqls = [];
+    let currentQueryResult = null;
+    
+    let activeFormat = 'rowset';
+    let viewStates = {
+        rowset: { isTransposed: false },
+        html: { isRowSpan: false }
+    };
+
+    // --- DOM ELEMENTS ---
+    const elements = {
+        profileSelect: document.getElementById('profiles-select'),
+        saveProfileBtn: document.getElementById('save-profile-btn'),
+        updateProfileBtn: document.getElementById('update-profile-btn'),
+        deleteProfileBtn: document.getElementById('delete-profile-btn'),
+        hostname: document.getElementById('hostname'),
+        sid: document.getElementById('sid'),
+        user: document.getElementById('user'),
+        password: document.getElementById('password'),
+        dbType: document.getElementById('db-type'),
+        port: document.getElementById('port'),
+        testConnBtn: document.getElementById('test-conn-btn'),
+        connResult: document.getElementById('conn-result'),
+        sqlSelect: document.getElementById('sql-select'),
+        sqlStatement: document.getElementById('sql-statement'),
+        saveSqlBtn: document.getElementById('save-sql-btn'),
+        updateSqlBtn: document.getElementById('update-sql-btn'),
+        deleteSqlBtn: document.getElementById('delete-sql-btn'),
+        executeSqlBtn: document.getElementById('execute-sql-btn'),
+        maxRows: document.getElementById('max-rows'),
+        formatControls: document.getElementById('format-controls'),
+        resultContainer: document.getElementById('result-container'),
+    };
+
+    // --- HELPER FUNCTIONS ---
+    const apiCall = async (endpoint, method = 'GET', body = null) => {
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) options.body = JSON.stringify(body);
+        const response = await fetch(endpoint, options);
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || 'An unknown error occurred.');
+        return result;
+    };
+
+    const showConnResult = (message, isError) => {
+        elements.connResult.style.display = 'block';
+        elements.connResult.textContent = message;
+        elements.connResult.className = 'result-box';
+        elements.connResult.classList.add(isError ? 'error' : 'success');
+    };
+
+    const promptForName = (title, defaultValue = '') => {
+        const name = prompt(title, defaultValue);
+        return name ? name.trim() : null;
+    };
+
+    const updateActiveFormatButton = () => {
+        const buttons = elements.formatControls.querySelectorAll('.format-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById(`format-${activeFormat}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    };
+    
+    const setDefaultPort = () => {
+        const dbType = elements.dbType.value;
+        const defaultPorts = {
+            'ORA': 1521,
+            'SQL': 1433,
+            'POST': 5432,
+            'LITE': ''
+        };
+        elements.port.value = defaultPorts[dbType] || '';
+    };
+
+
+    // --- PROFILE & SQL MANAGEMENT ---
+    const loadProfiles = async () => { 
+        try { 
+            profiles = await apiCall('/profiles'); 
+            elements.profileSelect.innerHTML = '<option value="">-- 新增設定檔 --</option>'; 
+            profiles.forEach(p => elements.profileSelect.add(new Option(p.name, p.id))); 
+            
+            const lastProfileId = localStorage.getItem('lastProfileId');
+            if (lastProfileId && elements.profileSelect.querySelector(`option[value="${lastProfileId}"]`)) {
+                elements.profileSelect.value = lastProfileId;
+            }
+
+            handleProfileChange(); 
+        } catch (error) { 
+            alert(`載入設定檔失敗: ${error.message}`); 
+        } 
+    };
+    const handleProfileChange = () => { 
+        const selectedId = elements.profileSelect.value; 
+        
+        localStorage.setItem('lastProfileId', selectedId);
+
+        if (selectedId) { 
+            const profile = profiles.find(p => p.id == selectedId); 
+            if (profile) {
+                elements.hostname.value = profile.hostname || ''; 
+                elements.sid.value = profile.sid || ''; 
+                elements.user.value = profile.user || ''; 
+                elements.password.value = profile.password || ''; 
+                elements.dbType.value = profile.db_type || 'ORA';
+                
+                // 如果 profile 中有儲存 port，就使用它；否則，根據 DB 類型設定預設值
+                if (profile.port) {
+                    elements.port.value = profile.port;
+                } else {
+                    setDefaultPort();
+                }
+            }
+            loadSqls(selectedId); 
+        } else { 
+            // 清空表單
+            ['hostname', 'sid', 'user', 'password', 'port'].forEach(id => elements[id].value = ''); 
+            elements.dbType.value = 'ORA';
+            setDefaultPort(); // 當清空時，也根據預設的 ORA 設定 port
+            loadSqls(null); 
+        } 
+    };
+    const loadSqls = async (profileId) => { 
+        elements.sqlSelect.innerHTML = '<option value="">-- 新增 SQL --</option>'; 
+        elements.sqlStatement.value = ''; 
+        if (!profileId) { 
+            sqls = []; 
+            return; 
+        } 
+        try { 
+            sqls = await apiCall(`/profiles/${profileId}/sqls`); 
+            sqls.forEach(s => elements.sqlSelect.add(new Option(s.name, s.id))); 
+
+            const lastUsedSqls = JSON.parse(localStorage.getItem('lastUsedSqlPerProfile')) || {};
+            const lastSqlIdForThisProfile = lastUsedSqls[profileId];
+
+            if (lastSqlIdForThisProfile && elements.sqlSelect.querySelector(`option[value="${lastSqlIdForThisProfile}"]`)) {
+                elements.sqlSelect.value = lastSqlIdForThisProfile;
+            }
+            elements.sqlSelect.dispatchEvent(new Event('change'));
+
+        } catch (error) { 
+            console.error(`載入 SQL 失敗: ${error.message}`); 
+        } 
+    };
+    elements.saveProfileBtn.addEventListener('click', async () => { 
+        const name = promptForName('請輸入新的設定檔名稱:'); 
+        if (!name) return;
+        const profileData = { 
+            name, 
+            hostname: elements.hostname.value.trim(), 
+            sid: elements.sid.value.trim(), 
+            user: elements.user.value.trim(), 
+            password: elements.password.value,
+            db_type: elements.dbType.value,
+            port: parseInt(elements.port.value) || null
+        };
+        try { 
+            const newProfile = await apiCall('/profiles', 'POST', profileData); 
+            alert(`設定檔 '${name}' 已儲存`); 
+            await loadProfiles(); 
+            elements.profileSelect.value = newProfile.id; 
+            handleProfileChange(); 
+        } catch (error) { 
+            alert(`儲存失敗: ${error.message}`); 
+        } 
+    });
+    elements.updateProfileBtn.addEventListener('click', async () => { 
+        const selectedId = elements.profileSelect.value; 
+        if (!selectedId) return alert('請先選擇一個要修改的設定檔'); 
+        const currentProfile = profiles.find(p => p.id == selectedId); 
+        const newName = promptForName('請確認設定檔名稱:', currentProfile.name); 
+        if (!newName) return; 
+        const profileData = { 
+            name: newName, 
+            hostname: elements.hostname.value.trim(), 
+            sid: elements.sid.value.trim(), 
+            user: elements.user.value.trim(), 
+            password: elements.password.value,
+            db_type: elements.dbType.value,
+            port: parseInt(elements.port.value) || null
+        };
+        try { 
+            await apiCall(`/profiles/${selectedId}`, 'PUT', profileData); 
+            alert(`設定檔 '${newName}' 已更新`); 
+            await loadProfiles(); 
+            elements.profileSelect.value = selectedId; 
+        } catch (error) { 
+            alert(`更新失敗: ${error.message}`); 
+        } 
+    });
+    elements.deleteProfileBtn.addEventListener('click', async () => { 
+        const selectedId = elements.profileSelect.value; 
+        if (!selectedId) return alert('請先選擇一個要刪除的設定檔'); 
+        const profile = profiles.find(p => p.id == selectedId); 
+        if (confirm(`確定要刪除設定檔 '${profile.name}' 嗎？\n這將會一併刪除其下儲存的所有 SQL。`)) { 
+            try { 
+                await apiCall(`/profiles/${selectedId}`, 'DELETE'); 
+                alert('設定檔已刪除'); 
+                await loadProfiles(); 
+            } catch (error) { 
+                alert(`刪除失敗: ${error.message}`); 
+            } 
+        } 
+    });
+    elements.saveSqlBtn.addEventListener('click', async () => { 
+        const profileId = elements.profileSelect.value; 
+        if (!profileId) return alert('請先選擇一個資料庫設定檔'); 
+        const name = promptForName('請輸入 SQL 的名稱:'); 
+        if (!name) return; 
+        const sqlData = { profile_id: parseInt(profileId), name, statement: elements.sqlStatement.value.trim() }; 
+        try { 
+            const newSql = await apiCall('/sqls', 'POST', sqlData); 
+            alert(`SQL '${name}' 已儲存`); 
+            await loadSqls(profileId); 
+            elements.sqlSelect.value = newSql.id; 
+        } catch (error) { 
+            alert(`儲存 SQL 失敗: ${error.message}`); 
+        } 
+    });
+    elements.updateSqlBtn.addEventListener('click', async () => { 
+        const sqlId = elements.sqlSelect.value; 
+        if (!sqlId) return alert('請先選擇一個要修改的 SQL'); 
+        const currentSql = sqls.find(s => s.id == sqlId); 
+        const newName = promptForName('請確認 SQL 名稱:', currentSql.name); 
+        if (!newName) return; 
+        const sqlData = { name: newName, statement: elements.sqlStatement.value.trim() }; 
+        try { 
+            await apiCall(`/sqls/${sqlId}`, 'PUT', sqlData); 
+            alert(`SQL '${newName}' 已更新`); 
+            await loadSqls(elements.profileSelect.value); 
+            elements.sqlSelect.value = sqlId; 
+        } catch (error) { 
+            alert(`更新 SQL 失敗: ${error.message}`); 
+        } 
+    });
+    elements.deleteSqlBtn.addEventListener('click', async () => { 
+        const sqlId = elements.sqlSelect.value; 
+        if (!sqlId) return alert('請先選擇一個要刪除的 SQL'); 
+        const sql = sqls.find(s => s.id == sqlId); 
+        if (confirm(`確定要刪除 SQL '${sql.name}' 嗎？`)) { 
+            try { 
+                await apiCall(`/sqls/${sqlId}`, 'DELETE'); 
+                alert('SQL 已刪除'); 
+                await loadSqls(elements.profileSelect.value); 
+            } catch (error) { 
+                alert(`刪除 SQL 失敗: ${error.message}`); 
+            } 
+        } 
+    });
+    
+
+    // --- DATABASE OPERATIONS ---
+    const getCredentials = () => ({ 
+        hostname: elements.hostname.value.trim(), 
+        sid: elements.sid.value.trim(), 
+        user: elements.user.value.trim(), 
+        pwd: elements.password.value,
+        db_type: elements.dbType.value,
+        port: parseInt(elements.port.value) || null
+    });
+
+    elements.testConnBtn.addEventListener('click', async () => { 
+        try { 
+            const result = await apiCall('/test-connection', 'POST', getCredentials()); 
+            showConnResult(result.message, false); 
+        } catch (error) { 
+            showConnResult(error.message, true); 
+        } 
+    });
+
+    elements.executeSqlBtn.addEventListener('click', async () => {
+        const queryData = { 
+            ...getCredentials(), 
+            sql: elements.sqlStatement.value.trim(), 
+            max_rows: parseInt(elements.maxRows.value) || 200 
+        };
+        elements.resultContainer.innerHTML = '<div class="result-box">查詢中...</div>';
+        try {
+            currentQueryResult = await apiCall('/execute-query', 'POST', queryData);
+            
+            viewStates.rowset.isTransposed = false;
+            viewStates.html.isRowSpan = false;
+            activeFormat = 'rowset'; 
+            
+            renderResult();
+
+        } catch (error) {
+            elements.resultContainer.innerHTML = `<div class="result-box error">查詢失敗: ${error.message}</div>`;
+            currentQueryResult = null;
+        }
+    });
+
+    // --- RESULT FORMATTING ---
+    const getTransposedData = (columns, data) => { 
+        if (!columns || columns.length === 0 || !data || data.length === 0) { 
+            return { headers: [], bodyRows: [] }; 
+        } 
+        const firstColumnName = columns[0]; 
+        const newHeaders = [firstColumnName, ...data.map(row => row[firstColumnName] ?? '')]; 
+        const newBodyRows = columns.slice(1).map(colName => { 
+            const newRow = { [firstColumnName]: colName }; 
+            data.forEach((originalRow, index) => { 
+                const headerKey = newHeaders[index + 1]; 
+                newRow[headerKey] = originalRow[colName] ?? ''; 
+            }); 
+            return newRow; 
+        }); 
+        return { headers: newHeaders, bodyRows: newBodyRows }; 
+    };
+
+    const renderResult = () => {
+        if (!currentQueryResult) return;
+        
+        switch(activeFormat) {
+            case 'rowset': renderRowSet(); break;
+            case 'datatables': renderDataTables(); break;
+            case 'html': renderHtmlTable(); break;
+            case 'json': renderJson(); break;
+        }
+        updateActiveFormatButton();
+    };
+
+    const renderRowSet = () => { 
+        if (!currentQueryResult) return; 
+        const { columns, data } = currentQueryResult; 
+        let text = `查詢成功，共回傳 ${data.length} 筆資料。\n\n`; 
+        if (viewStates.rowset.isTransposed) { 
+            const colWidths = columns.map(c => c.length); 
+            data.forEach(row => columns.forEach((col, i) => { const val = String(row[col] ?? ''); if (val.length > colWidths[i]) colWidths[i] = val.length; })); 
+            columns.forEach((col, i) => { text += col.padEnd(colWidths[i]) + ' | ' + data.map(row => String(row[col] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
+        } else { 
+            const colWidths = columns.map(c => c.length); 
+            data.forEach(row => columns.forEach((col, i) => { const val = String(row[col] ?? ''); if (val.length > colWidths[i]) colWidths[i] = val.length; })); 
+            text += columns.map((c, i) => c.padEnd(colWidths[i])).join(' | ') + '\n'; 
+            text += columns.map((c, i) => '-'.repeat(colWidths[i])).join('-|-') + '\n'; 
+            data.forEach(row => { text += columns.map((c, i) => String(row[c] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
+        } 
+        elements.resultContainer.innerHTML = `<pre class="result-box rowset-view">${text}</pre>`; 
+    };
+    const renderDataTables = () => { 
+        if (!currentQueryResult) return; 
+        let { columns, data } = currentQueryResult; 
+        let headers, tableData; 
+        if (viewStates.rowset.isTransposed) { 
+            const transposed = getTransposedData(columns, data); 
+            headers = transposed.headers; 
+            tableData = transposed.bodyRows.map(row => headers.map(h => row[h])); 
+        } else { 
+            headers = columns; 
+            tableData = data.map(row => columns.map(col => row[col])); 
+        } 
+        const tableId = `dt-${Date.now()}`; 
+        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead></table>`; 
+        $(`#${tableId}`).DataTable({ data: tableData, destroy: true, scrollX: true }); 
+    };
+    const renderHtmlTable = () => { 
+        if (!currentQueryResult) return; 
+        let { columns, data } = currentQueryResult; 
+        let headers, bodyRows; 
+        if (viewStates.rowset.isTransposed) { 
+            const transposed = getTransposedData(columns, data); 
+            headers = transposed.headers; 
+            bodyRows = transposed.bodyRows; 
+        } else { 
+            headers = columns; 
+            bodyRows = data; 
+        } 
+        let tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
+        if (viewStates.html.isRowSpan && !viewStates.rowset.isTransposed && bodyRows.length > 0) { 
+            let lastValues = new Array(3).fill(null); 
+            for (let i = 0; i < bodyRows.length; i++) { 
+                tableHtml += '<tr>'; 
+                for (let j = 0; j < headers.length; j++) { 
+                    const col = headers[j]; 
+                    const isSpanCol = j < 3; 
+                    if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) { 
+                        /* Skip cell */ 
+                    } else { 
+                        lastValues[j] = bodyRows[i][col]; 
+                        let span = 1; 
+                        if (isSpanCol) { 
+                            for (let k = i + 1; k < bodyRows.length; k++) { 
+                                if (bodyRows[k][col] === bodyRows[i][col]) span++; 
+                                else break; 
+                            } 
+                        } 
+                        tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${bodyRows[i][col] ?? ''}</td>`; 
+                    } 
+                } 
+                tableHtml += '</tr>'; 
+            } 
+        } else { 
+            bodyRows.forEach(row => { 
+                tableHtml += '<tr>' + headers.map(col => `<td>${row[col] ?? ''}</td>`).join('') + '</tr>'; 
+            }); 
+        } 
+        tableHtml += '</tbody></table>'; 
+        elements.resultContainer.innerHTML = tableHtml; 
+    };
+    const renderJson = () => { 
+        if (!currentQueryResult) return; 
+        elements.resultContainer.innerHTML = `<pre class="result-box">${JSON.stringify(currentQueryResult.data, null, 2)}</pre>`; 
+    };
+    const exportCsv = () => { 
+        if (!currentQueryResult) return; 
+        let { columns, data } = currentQueryResult; 
+        let headers, rows; 
+        if (viewStates.rowset.isTransposed) { 
+            const transposed = getTransposedData(columns, data); 
+            headers = transposed.headers; 
+            rows = transposed.bodyRows; 
+        } else { 
+            headers = columns; 
+            rows = data; 
+        } 
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n"; 
+        rows.forEach(row => { csvContent += headers.map(header => `"${String(row[header] ?? '').replace(/"/g, '""')}"`).join(",") + "\r\n"; }); 
+        const link = document.createElement("a"); 
+        link.setAttribute("href", encodeURI(csvContent)); 
+        link.setAttribute("download", "query_result.csv"); 
+        document.body.appendChild(link); 
+        link.click(); 
+        document.body.removeChild(link); 
+    };
+
+    // --- EVENT LISTENERS ---
+    elements.profileSelect.addEventListener('change', handleProfileChange);
+    
+    elements.sqlSelect.addEventListener('change', () => {
+        const profileId = elements.profileSelect.value;
+        const sqlId = elements.sqlSelect.value;
+        const sql = sqls.find(s => s.id == sqlId);
+        elements.sqlStatement.value = sql ? sql.statement : '';
+        
+        if (profileId) {
+            const lastUsedSqls = JSON.parse(localStorage.getItem('lastUsedSqlPerProfile')) || {};
+            lastUsedSqls[profileId] = sqlId;
+            localStorage.setItem('lastUsedSqlPerProfile', JSON.stringify(lastUsedSqls));
+        }
+    });
+    
+    elements.dbType.addEventListener('change', setDefaultPort);
+
+    elements.formatControls.addEventListener('click', (e) => {
+        if (!e.target.matches('button')) return;
+        if (!currentQueryResult) return;
+
+        const targetId = e.target.id;
+        
+        switch(targetId) {
+            case 'format-rowset':
+                if (activeFormat === 'rowset') {
+                    viewStates.rowset.isTransposed = !viewStates.rowset.isTransposed;
+                }
+                activeFormat = 'rowset';
+                break;
+            case 'format-datatables':
+                activeFormat = 'datatables';
+                break;
+            case 'format-html':
+                if (activeFormat === 'html') {
+                    viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+                }
+                activeFormat = 'html';
+                break;
+            case 'format-json':
+                activeFormat = 'json';
+                break;
+            case 'format-csv':
+                exportCsv();
+                return; 
+        }
+        renderResult();
+    });
+
+    // --- INITIALIZATION ---
+    loadProfiles();
+
+});
+</script>
+</body>
+</html>
+

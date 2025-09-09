@@ -1,0 +1,21 @@
+# Docker Compose 檔案版本
+version: '3.8'
+
+services:
+  # 我們的 FastAPI 應用程式服務 (整合前後端)
+  backend:
+    # 告訴 Docker Compose 使用當前目錄的 Dockerfile 來建立映像檔
+    build: .
+    container_name: oracle_api_service
+    # 將主機的 8000 埠映射到容器的 8000 埠
+    ports:
+      - "8000:8000"
+    # volumes 用於將主機的目錄掛載到容器內
+    # 1. 掛載程式碼目錄：讓您在主機上修改程式碼時，容器內會同步更新
+    # 2. 掛載 data 目錄：讓 SQLite 資料庫檔案持久化儲存在主機上
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    # 覆寫 Dockerfile 的 CMD，加上 --reload 參數以啟用熱重載
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
