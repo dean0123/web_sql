@@ -1,12 +1,12 @@
 # Docker Compose 檔案版本
-version: '3.8'
+#version: '3.8'
 
 services:
   # 我們的 FastAPI 應用程式服務 (整合前後端)
   backend:
     # 告訴 Docker Compose 使用當前目錄的 Dockerfile 來建立映像檔
     build: .
-    container_name: oracle_api_service
+    container_name: web_sql
     # 將主機的 8000 埠映射到容器的 8000 埠
     ports:
       - "8000:8000"
