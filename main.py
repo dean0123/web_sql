@@ -1,234 +1,121 @@
 import oracledb
-import sqlite3
 import logging
 import os
 from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel, Field
 from fastapi.responses import FileResponse
-from contextlib import contextmanager
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from enum import Enum
 
-# --- 初始化設定 ---
+# --- 1. 初始化設定 ---
 logging.basicConfig(level=logging.INFO)
 
+# 嘗試初始化 Oracle Client。如果失敗，則僅記錄警告，應用程式仍可以 Thin Mode 運行
 try:
+    # 注意：在 Docker 環境中，ORACLE_CLIENT_LIB 環境變數由 Dockerfile 設定
     oracledb.init_oracle_client(lib_dir=os.environ.get("ORACLE_CLIENT_LIB"))
     logging.info(f"Oracle Thick Mode initialized successfully. Client version: {oracledb.clientversion()}")
 except Exception as e:
-    logging.error(f"Error initializing Oracle client: {e}")
+    logging.warning(f"Could not initialize Oracle client in Thick Mode: {e}. The application will continue in Thin Mode.")
 
-DB_DIR = "data"
-DB_PATH = os.path.join(DB_DIR, "profiles.db")
+# --- 2. Pydantic 模型定義 ---
 
-# --- 資料庫輔助函式 ---
-def init_db():
-    os.makedirs(DB_DIR, exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        # 建立連線設定檔資料表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS profiles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                hostname TEXT NOT NULL,
-                sid TEXT NOT NULL,
-                user TEXT NOT NULL,
-                password TEXT NOT NULL
-            )
-        """)
-        # 建立 SQL 語句資料表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS sql_statements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                statement TEXT NOT NULL,
-                FOREIGN KEY (profile_id) REFERENCES profiles (id) ON DELETE CASCADE,
-                UNIQUE (profile_id, name)
-            )
-        """)
-        conn.commit()
-        logging.info("SQLite database and tables initialized.")
+# 定義支援的資料庫類型 Enum，與前端保持一致
+class DbType(str, Enum):
+    ORACLE = "ORA"
+    MSSQL = "SQL"
+    POSTGRES = "POST"
+    SQLITE = "LITE"
 
-@contextmanager
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-# --- Pydantic 模型定義 ---
-class OracleConnection(BaseModel):
-    hostname: str = Field(...)
-    sid: str = Field(...)
-    user: str = Field(...)
+# 定義連線資訊的基本模型
+class DbConnectionBase(BaseModel):
+    hostname: str
+    sid: str # 對於不同DB，可能代表 Service Name, Database Name 等
+    user: str
     password: str = Field(..., alias="pwd")
+    db_type: DbType = DbType.ORACLE
+    port: Optional[int] = None
+    # profileId 從前端傳來，但後端不再需要處理它，因此設為可選
+    profileId: Optional[str] = None
 
-class SQLQuery(OracleConnection):
-    sql: str = Field(...)
+
+# 定義 SQL 查詢請求的模型，繼承自連線模型:
+class SQLQuery(DbConnectionBase):
+    sql: str
     max_rows: int = Field(200, gt=0, le=10000)
 
-class ProfileBase(BaseModel):
-    hostname: str
-    sid: str
-    user: str
-    password: str
+# --- 3. 多資料庫連線邏輯 ---
 
-class ProfileCreate(ProfileBase):
-    name: str
-
-class Profile(ProfileBase):
-    id: int
-    name: str
-
-class SQLStatementBase(BaseModel):
-    name: str
-    statement: str
-
-class SQLStatementCreate(SQLStatementBase):
-    profile_id: int
-
-class SQLStatement(SQLStatementBase):
-    id: int
-    profile_id: int
-
-
-# --- FastAPI 應用程式實例 ---
-app = FastAPI(title="DB Web Query Tool API")
-
-@app.on_event("startup")
-async def startup_event():
-    init_db()
-
-# --- API Endpoints ---
-
-# --- Profile CRUD ---
-@app.post("/profiles", response_model=Profile, tags=["Profiles"])
-async def create_profile(profile: ProfileCreate):
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO profiles (name, hostname, sid, user, password) VALUES (?, ?, ?, ?, ?)",
-                (profile.name, profile.hostname, profile.sid, profile.user, profile.password)
-            )
-            conn.commit()
-            profile_id = cursor.lastrowid
-            return {**profile.dict(), "id": profile_id}
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="此設定檔名稱已存在")
-
-@app.get("/profiles", response_model=list[Profile], tags=["Profiles"])
-async def get_all_profiles():
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, hostname, sid, user, password FROM profiles ORDER BY name")
-        return [dict(row) for row in cursor.fetchall()]
-
-@app.put("/profiles/{profile_id}", response_model=Profile, tags=["Profiles"])
-async def update_profile(profile_id: int, profile: ProfileCreate):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM profiles WHERE id = ?", (profile_id,))
-        if cursor.fetchone() is None:
-            raise HTTPException(status_code=404, detail="找不到指定的設定檔")
+def get_db_engine(conn_details: DbConnectionBase):
+    """
+    根據 db_type 建立並回傳對應的資料庫連線。
+    這是一個擴充點，未來可以加入對其他資料庫的支援。
+    """
+    logging.info(f"Attempting to connect to {conn_details.db_type.value} database...")
+    
+    if conn_details.db_type == DbType.ORACLE:
         try:
-            cursor.execute(
-                "UPDATE profiles SET name = ?, hostname = ?, sid = ?, user = ?, password = ? WHERE id = ?",
-                (profile.name, profile.hostname, profile.sid, profile.user, profile.password, profile_id)
-            )
-            conn.commit()
-            return {"id": profile_id, **profile.dict()}
-        except sqlite3.IntegrityError:
-            raise HTTPException(status_code=400, detail="此設定檔名稱已存在")
-
-@app.delete("/profiles/{profile_id}", tags=["Profiles"])
-async def delete_profile(profile_id: int):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
-        conn.commit()
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="找不到指定的設定檔")
-        return {"status": "success", "message": "設定檔已刪除"}
-
-# --- SQL Statement CRUD ---
-@app.post("/sqls", response_model=SQLStatement, tags=["SQL Statements"])
-async def create_sql_statement(stmt: SQLStatementCreate):
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO sql_statements (profile_id, name, statement) VALUES (?, ?, ?)",
-                (stmt.profile_id, stmt.name, stmt.statement)
-            )
-            conn.commit()
-            stmt_id = cursor.lastrowid
-            return {**stmt.dict(), "id": stmt_id}
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail=f"此設定檔下已有名為 '{stmt.name}' 的 SQL")
-
-@app.get("/profiles/{profile_id}/sqls", response_model=list[SQLStatement], tags=["SQL Statements"])
-async def get_sqls_for_profile(profile_id: int):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, profile_id, name, statement FROM sql_statements WHERE profile_id = ? ORDER BY name", (profile_id,))
-        return [dict(row) for row in cursor.fetchall()]
-
-@app.put("/sqls/{sql_id}", response_model=SQLStatement, tags=["SQL Statements"])
-async def update_sql_statement(sql_id: int, stmt: SQLStatementBase):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        # 取得 profile_id 以便回傳
-        cursor.execute("SELECT profile_id FROM sql_statements WHERE id = ?", (sql_id,))
-        row = cursor.fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="找不到指定的 SQL")
-        profile_id = row['profile_id']
-        try:
-            cursor.execute(
-                "UPDATE sql_statements SET name = ?, statement = ? WHERE id = ?",
-                (stmt.name, stmt.statement, sql_id)
-            )
-            conn.commit()
-            return {"id": sql_id, "profile_id": profile_id, **stmt.dict()}
-        except sqlite3.IntegrityError:
-            raise HTTPException(status_code=400, detail=f"此設定檔下已有名為 '{stmt.name}' 的 SQL")
-
-@app.delete("/sqls/{sql_id}", tags=["SQL Statements"])
-async def delete_sql_statement(sql_id: int):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM sql_statements WHERE id = ?", (sql_id,))
-        conn.commit()
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="找不到指定的 SQL")
-        return {"status": "success", "message": "SQL 語句已刪除"}
+            # 使用 oracledb.makedsn 可以更好地處理 Thick/Thin mode 的差異
+            dsn = oracledb.makedsn(conn_details.hostname, conn_details.port or 1521, sid=conn_details.sid)
+            logging.info(f"Connecting to Oracle with DSN: {dsn}")
+            return oracledb.connect(user=conn_details.user, password=conn_details.password, dsn=dsn)
+        except oracledb.Error as e:
+            logging.error(f"Oracle connection failed: {e}")
+            raise HTTPException(status_code=400, detail=f"Oracle 連線失敗: {e}")
+    
+    # --- 未來擴充點 ---
+    elif conn_details.db_type == DbType.MSSQL:
+        # 這裡可以加入 pyodbc 的連線邏輯
+        raise HTTPException(status_code=501, detail="MS-SQL Server 連線功能尚未實作")
+    elif conn_details.db_type == DbType.POSTGRES:
+        # 這裡可以加入 psycopg2 的連線邏輯
+        raise HTTPException(status_code=501, detail="PostgreSQL 連線功能尚未實作")
+    elif conn_details.db_type == DbType.SQLITE:
+        # SQLite 是檔案型資料庫，連線邏輯不同
+        raise HTTPException(status_code=501, detail="SQLite 連線功能尚未實作")
+    else:
+        raise HTTPException(status_code=400, detail="不支援的資料庫類型")
 
 
-# --- Oracle Operations ---
+# --- 4. FastAPI 應用程式實例 ---
+app = FastAPI(
+    title="DB Web Query Tool API",
+    description="一個純粹的資料庫查詢代理 API，不處理任何設定檔儲存。"
+)
+
+# --- 5. API Endpoints ---
+
 @app.post("/test-connection", tags=["Database"])
-async def test_oracle_connection(conn: OracleConnection = Body(...)):
-    dsn = f"{conn.hostname}/{conn.sid}"
+async def test_db_connection(conn_details: DbConnectionBase = Body(...)):
+    """
+    測試與指定資料庫的連線。
+    """
     try:
-        with oracledb.connect(user=conn.user, password=conn.password, dsn=dsn):
+        # 使用 with 語句確保連線在使用後會被自動關閉
+        with get_db_engine(conn_details):
             pass
-        return {"status": "success", "message": f"Oracle DB (Thick Mode) {conn.hostname}/{conn.sid} 連線成功！"}
-    except oracledb.Error as e:
-        raise HTTPException(status_code=400, detail=f"連線失敗: {e}")
+        return {"status": "success", "message": f"{conn_details.db_type.value} DB {conn_details.hostname} 連線成功！"}
+    except HTTPException as e:
+        # 如果 get_db_engine 內部拋出 HTTPException，直接重新拋出
+        raise e
+    except Exception as e:
+        # 捕獲其他未預期的錯誤
+        raise HTTPException(status_code=500, detail=f"發生未預期的連線錯誤: {e}")
 
 @app.post("/execute-query", tags=["Database"])
 async def execute_sql_query(query: SQLQuery = Body(...)):
-    dsn = f"{query.hostname}/{query.sid}"
+    """
+    在指定的資料庫上執行 SQL 查詢。
+    """
     try:
-        with oracledb.connect(user=query.user, password=query.password, dsn=dsn) as connection:
+        with get_db_engine(query) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(query.sql)
+                # 安全地獲取欄位名稱
                 columns = [col[0] for col in cursor.description] if cursor.description else []
                 # 使用 fetchmany 限制回傳的行數
                 rows = cursor.fetchmany(query.max_rows)
+                # 將結果轉換為 [ {column: value}, ... ] 的格式
                 result_data = [dict(zip(columns, row)) for row in rows]
                 return {
                     "status": "success",
@@ -236,12 +123,16 @@ async def execute_sql_query(query: SQLQuery = Body(...)):
                     "columns": columns,
                     "data": result_data,
                 }
-    except oracledb.Error as e:
+    except HTTPException as e:
+        raise e
+    except Exception as e:
         raise HTTPException(status_code=400, detail=f"查詢執行失敗: {e}")
 
-# --- Frontend Hosting ---
+# --- 6. 前端靜態檔案服務 ---
 @app.get("/", include_in_schema=False)
 async def read_index():
+    """
+    提供前端 index.html 頁面。
+    """
     return FileResponse('index.html')
-
 
