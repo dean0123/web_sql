@@ -1,0 +1,52 @@
+204,205c204
+<         port: parseInt(elements.port.value) || null,
+<         profileId: elements.profileSelect.value
+---
+>         port: parseInt(elements.port.value) || null
+420,421c419,421
+<         const queryData = {
+<             ...getCredentials(),
+---
+>         const credentials = getCredentials();
+>         const params = new URLSearchParams({
+>             ...credentials,
+423,427c423,425
+<             max_rows: parseInt(elements.maxRows.value) || 200
+<         };
+< 
+<         const queryId = `query_${Date.now()}`;
+<         sessionStorage.setItem(queryId, JSON.stringify(queryData));
+---
+>             max_rows: elements.maxRows.value,
+>             profileId: elements.profileSelect.value
+>         });
+431c429
+<         window.location.href = `${window.location.pathname}?queryId=${queryId}`;
+---
+>         window.location.href = `${window.location.pathname}?${params.toString()}`;
+618c616
+<     const queryId = urlParams.get('queryId');
+---
+>     const isResultPage = urlParams.has('sql');
+620c618
+<     if (queryId) {
+---
+>     if (isResultPage) {
+623,628c621,626
+<         const queryDataJSON = sessionStorage.getItem(queryId);
+<         if (!queryDataJSON) {
+<             elements.resultContainer.innerHTML = `<div class="result-box error">找不到查詢參數 (ID: ${queryId})，可能是分頁已過期。</div>`;
+<             return;
+<         }
+<         const queryData = JSON.parse(queryDataJSON);
+---
+>         const queryData = {
+>             hostname: urlParams.get('hostname'), sid: urlParams.get('sid'),
+>             user: urlParams.get('user'), pwd: urlParams.get('pwd'),
+>             db_type: urlParams.get('db_type'), port: urlParams.get('port'),
+>             sql: urlParams.get('sql'), max_rows: urlParams.get('max_rows')
+>         };
+653c651
+<         const profileId = queryData.profileId;
+---
+>         const profileId = urlParams.get('profileId');

@@ -36,7 +36,7 @@
         
         .result-container {
             margin-top: 1rem;
-            min-height: 250px;
+            min-height: 250px; /* 【修正】為結果容器設定最小高度，防止切換時畫面跳動 */
         }
         .result-box { margin-top: 1rem; padding: 1rem; border-radius: 4px; font-family: "Courier New", Courier, monospace; word-wrap: break-word; max-height: 500px; overflow: auto; background-color: #e9ecef; border: 1px solid #ced4da; }
         .result-box.rowset-view { white-space: pre; overflow-x: auto; }
@@ -136,8 +136,7 @@
     let profiles = [];
     let sqls = [];
     let currentQueryResult = null;
-    let execSqlStatement = '';
-    
+    let execSqlStatement = ''; // 儲存當前頁面已執行的 SQL
     let activeFormat = 'rowset';
     let viewStates = {
         rowset: { isTransposed: false },
@@ -171,6 +170,10 @@
     };
 
     // --- 4. 服務與輔助函式 (Services & Helpers) ---
+
+    /**
+     * @namespace StorageService 處理所有瀏覽器儲存操作
+     */
     const StorageService = {
         get: (key, defaultValue = []) => {
             const item = localStorage.getItem(key);
@@ -187,6 +190,9 @@
         }
     };
     
+    /**
+     * 負責與後端 API 溝通
+     */
     const apiCall = async (endpoint, method = 'GET', body = null) => {
         const options = { method, headers: { 'Content-Type': 'application/json' } };
         if (body) options.body = JSON.stringify(body);
@@ -203,6 +209,9 @@
         }
     };
     
+    /**
+     * 顯示連線測試結果
+     */
     const showConnResult = (message, isError) => {
         elements.connResult.style.display = 'block';
         elements.connResult.textContent = message;
@@ -210,18 +219,27 @@
         elements.connResult.classList.add(isError ? 'error' : 'success');
     };
     
+    /**
+     * 更新格式按鈕的啟用狀態樣式
+     */
     const updateActiveFormatButton = () => {
         elements.formatControls.querySelectorAll('.format-btn').forEach(btn => btn.classList.remove('active'));
         const activeBtn = document.getElementById(`format-${activeFormat}`);
         if (activeBtn) activeBtn.classList.add('active');
     };
     
+    /**
+     * 根據選擇的 DB 類型，設定預設的 Port
+     */
     const setDefaultPort = () => {
         const dbType = elements.dbType.value;
         const defaultPorts = { 'ORA': 1521, 'SQL': 1433, 'POST': 5432, 'LITE': '' };
         elements.port.value = defaultPorts[dbType] || '';
     };
 
+    /**
+     * 獲取目前表單中的連線資訊
+     */
     const getCredentials = () => ({
         hostname: elements.hostname.value.trim(),
         sid: elements.sid.value.trim(),
@@ -234,6 +252,9 @@
     
     // --- 5. 核心業務邏輯 (Core Business Logic) ---
     
+    /**
+     * 執行查詢的核心函式
+     */
     const runQuery = async (queryData) => {
         elements.resultContainer.innerHTML = '<div class="result-box">查詢中...</div>';
         try {
@@ -647,22 +668,16 @@
             const queryData = JSON.parse(queryDataJSON);
             
             Object.keys(queryData).forEach(key => {
-                if (elements[key] && key !== 'sqlStatement') { // 避免覆蓋 sqlStatement
-                    elements[key].value = queryData[key];
-                }
+                if (elements[key]) elements[key].value = queryData[key];
             });
             elements.password.value = queryData.pwd;
-            
-            // 【修正】確保 execSqlStatement 和輸入框都設定為查詢的 SQL
-            execSqlStatement = queryData.sql;
-            elements.sqlStatement.value = execSqlStatement;
-
 
             const cachedResultKey = window.location.search;
             const cachedResultJSON = sessionStorage.getItem(cachedResultKey);
             
             if (cachedResultJSON) {
                 currentQueryResult = JSON.parse(cachedResultJSON);
+                execSqlStatement = queryData.sql;
                 renderResult();
                 elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
             } else {
@@ -671,6 +686,7 @@
             
             profiles = StorageService.get(STORAGE_KEYS.PROFILES);
             elements.profileSelect.innerHTML = '<option value="">-- 新增設定檔 --</option>';
+
             profiles.forEach(p => elements.profileSelect.add(new Option(p.name, p.id)));
             
             const profileId = queryData.profileId;

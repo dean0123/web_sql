@@ -6,7 +6,7 @@ services:
   backend:
     # 告訴 Docker Compose 使用當前目錄的 Dockerfile 來建立映像檔
     build: .
-    container_name: web_sql
+    container_name: sql_web
     # 將主機的 8000 埠映射到容器的 8000 埠
     ports:
       - "8000:8000"
