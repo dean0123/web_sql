@@ -49,13 +49,13 @@
 
         #response-time-display {
             font-weight: bold;
-            color: #6c757d;
+            color: #6c757d; /* 預設灰色 */
         }
         #response-time-display.warn {
-            color: #fd7e14;
+            color: #fd7e14; /* 橘色 */
         }
         #response-time-display.error {
-            color: #dc3545;
+            color: #dc3545; /* 紅色 */
         }
     </style>
 </head>
@@ -100,7 +100,6 @@
         <h3>
             <span>2. 執行 SQL Statement</span>
             <div class="form-row">
-                <span id="storage-usage-display" style="margin-right: 1rem; font-size: 0.8rem; color: #6c757d;"></span>
                 <select id="sql-select" style="width: 200px;"><option value="">-- 新增 SQL --</option></select>
                 <button id="save-sql-btn" class="btn-sm btn-success">儲存</button>
                 <button id="delete-sql-btn" class="btn-sm btn-danger">刪除</button>
@@ -144,7 +143,6 @@
         LAST_USED_SQL: 'lastUsedSqlPerProfile'
     };
     const ROW_SPAN_COLUMN_COUNT = 3;
-    const LOCAL_STORAGE_QUOTA_MB = 5;
 
     // --- 2. 狀態管理 (State Management) ---
     let profiles = [];
@@ -183,7 +181,6 @@
         resultContainer: document.getElementById('result-container'),
         sqlSection: document.getElementById('sql-section'),
         responseTimeDisplay: document.getElementById('response-time-display'),
-        storageUsageDisplay: document.getElementById('storage-usage-display'),
     };
 
     // --- 4. 服務與輔助函式 (Services & Helpers) ---
@@ -200,7 +197,6 @@
         },
         set: (key, value) => {
             localStorage.setItem(key, JSON.stringify(value));
-            updateLocalStorageUsage(); // 每次寫入都更新用量顯示
         }
     };
     
@@ -248,17 +244,6 @@
         port: parseInt(elements.port.value) || null,
         profileId: elements.profileSelect.value
     });
-
-    const updateLocalStorageUsage = () => {
-        let totalSize = 0;
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            const value = localStorage.getItem(key);
-            totalSize += (key.length + value.length) * 2; // UTF-16 in JS, 2 bytes per char
-        }
-        const usageInMB = (totalSize / (1024 * 1024)).toFixed(1);
-        elements.storageUsageDisplay.textContent = `本機儲存: ${usageInMB} / ${LOCAL_STORAGE_QUOTA_MB.toFixed(1)} MB`;
-    };
     
     // --- 5. 核心業務邏輯 (Core Business Logic) ---
     
@@ -273,12 +258,13 @@
             currentQueryResult = await apiCall('/execute-query', 'POST', queryData);
             
             const endTime = performance.now();
-            const durationInSeconds = ((endTime - startTime) / 1000).toFixed(2);
+            const duration = endTime - startTime;
+            const durationInSeconds = (duration / 1000).toFixed(2);
             
             elements.responseTimeDisplay.textContent = `耗時: ${durationInSeconds}s`;
-            if (durationInSeconds > 2) {
+            if (duration > 2000) {
                 elements.responseTimeDisplay.className = 'error';
-            } else if (durationInSeconds > 1) {
+            } else if (duration > 1000) {
                 elements.responseTimeDisplay.className = 'warn';
             }
             
@@ -505,8 +491,6 @@
             const sql = sqls.find(s => s.id == sqlId);
             if (sql) {
                 elements.sqlStatement.value = sql.statement;
-            } else if (!isResultPage) { // 如果是主頁面且沒有選中SQL，清空
-                elements.sqlStatement.value = '';
             }
             if (!isResultPage) {
                  setLastUsedSql(profileId, sqlId);
@@ -694,7 +678,7 @@
             const queryData = JSON.parse(queryDataJSON);
             
             Object.keys(queryData).forEach(key => {
-                if (elements[key] && key !== 'sql') { // 避免覆蓋 sqlStatement
+                if (elements[key] && key !== 'sqlStatement') {
                     elements[key].value = queryData[key];
                 }
             });
@@ -727,7 +711,6 @@
             loadProfiles();
         }
         setupEventListeners();
-        updateLocalStorageUsage();
     }
 
     initializeApp();
