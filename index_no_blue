@@ -132,17 +132,20 @@
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script>
+// 使用 IIFE (立即執行函式運算式) 建立一個私有作用域，避免污染全域
 (function() {
     'use strict';
 
+    // --- 1. 常數定義 (Constants) ---
     const STORAGE_KEYS = {
         PROFILES: 'profiles',
         SQLS: 'sqls',
-        LAST_PROFILE_ID: 'lastProfileId'
+        LAST_PROFILE_ID: 'lastProfileId',
     };
     const ROW_SPAN_COLUMN_COUNT = 3;
     const LOCAL_STORAGE_QUOTA_MB = 5;
 
+    // --- 2. 狀態管理 (State Management) ---
     let profiles = [];
     let sqls = [];
     let currentQueryResult = null;
@@ -152,9 +155,10 @@
     let activeFormat = 'rowset';
     let viewStates = {
         rowset: { mode: 'normal' },
-        isRowSpan: false
+        html: { isRowSpan: false }
     };
 
+    // --- 3. DOM 元素快取 ---
     const elements = {
         profileSelect: document.getElementById('profiles-select'),
         saveProfileBtn: document.getElementById('save-profile-btn'),
@@ -182,6 +186,7 @@
         storageUsageDisplay: document.getElementById('storage-usage-display'),
     };
 
+    // --- 4. 服務與輔助函式 (Services & Helpers) ---
     const StorageService = {
         get: (key, defaultValue = []) => {
             const item = localStorage.getItem(key);
@@ -247,6 +252,8 @@
         elements.storageUsageDisplay.textContent = `本機儲存: ${usageInMB} / ${LOCAL_STORAGE_QUOTA_MB.toFixed(1)} MB`;
     };
     
+    // --- 5. 核心業務邏輯 (Core Business Logic) ---
+    
     const runQuery = async (queryData) => {
         elements.resultContainer.innerHTML = '<div class="result-box">查詢中...</div>';
         elements.responseTimeDisplay.textContent = '查詢中...';
@@ -272,7 +279,7 @@
             sessionStorage.setItem(window.location.search, JSON.stringify(currentQueryResult));
 
             viewStates.rowset.mode = 'normal';
-            viewStates.isRowSpan = false;
+            viewStates.html.isRowSpan = false;
             activeFormat = 'rowset';
             renderResult();
             elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
@@ -335,6 +342,8 @@
         elements.sqlSelect.dispatchEvent(new Event('change'));
     };
     
+    // --- 6. 畫面渲染函式 (View Renderers) ---
+
     const getProcessedData = () => {
         if (!currentQueryResult) return { columns: [], data: [] };
         const { columns: originalColumns, data: originalData } = currentQueryResult;
@@ -396,8 +405,6 @@
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
             tableData = transposed.bodyData;
-            // Dean 手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
-            updateActiveFormatButton();
         } else { 
             headers = columns; 
             tableData = data.map(row => columns.map(col => row[col])); 
@@ -429,7 +436,7 @@
             const headers = columns; 
             const bodyRows = data;
             tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
-            if (viewStates.isRowSpan && bodyRows.length > 0) { 
+            if (viewStates.html.isRowSpan && bodyRows.length > 0) { 
                 let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null); 
                 for (let i = 0; i < bodyRows.length; i++) { 
                     tableHtml += '<tr>'; 
@@ -493,12 +500,18 @@
         document.body.removeChild(link); 
     };
 
+    // --- 7. 事件監聽器 (Event Listeners & Controllers) ---
+
     function setupEventListeners() {
         elements.profileSelect.addEventListener('change', handleProfileChange);
         elements.sqlSelect.addEventListener('change', () => {
             const sqlId = elements.sqlSelect.value;
             const sql = sqls.find(s => s.id == sqlId);
-            elements.sqlStatement.value = sql ? sql.statement : '';
+            if (sql) {
+                elements.sqlStatement.value = sql.statement;
+            } else {
+                elements.sqlStatement.value = '';
+            }
         });
         elements.dbType.addEventListener('change', setDefaultPort);
         elements.testConnBtn.addEventListener('click', async () => {
@@ -626,24 +639,23 @@
         elements.formatControls.addEventListener('click', (e) => {
             if (!e.target.matches('button') || !currentQueryResult) return;
             const targetId = e.target.id;
-            const newFormat = targetId.replace('format-', '');
-
-            if (newFormat === 'csv') {
-                exportCsv();
-                return;
+            switch(targetId) {
+                case 'format-rowset':
+                    if (activeFormat === 'rowset') {
+                        const modes = ['normal', 'withId', 'transposed'];
+                        const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
+                        viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
+                    }
+                    activeFormat = 'rowset';
+                    break;
+                case 'format-datatables': activeFormat = 'datatables'; break;
+                case 'format-html':
+                    if(activeFormat === 'html') viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+                    activeFormat = 'html';
+                    break;
+                case 'format-json': activeFormat = 'json'; break;
+                case 'format-csv': exportCsv(); return; 
             }
-            
-            if (activeFormat === newFormat) {
-                if (newFormat === 'rowset') {
-                    const modes = ['normal', 'withId', 'transposed'];
-                    const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
-                    viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
-                } else if (newFormat === 'html') {
-                    viewStates.isRowSpan = !viewStates.isRowSpan;
-                }
-            }
-            
-            activeFormat = newFormat;
             renderResult();
         });
     }

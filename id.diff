@@ -1,0 +1,241 @@
+142d141
+<         LAST_USED_SQL: 'lastUsedSqlPerProfile'
+150a150
+>     let execCredentials = null;
+154c154
+<         rowset: { isTransposed: false },
+---
+>         rowset: { mode: 'normal' },
+270a271
+>             execCredentials = { ...queryData };
+273c274
+<             viewStates.rowset.isTransposed = false;
+---
+>             viewStates.rowset.mode = 'normal';
+287a289,290
+>         profiles.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+>         
+324c327
+<     const loadSqls = (profileId, autoSelect = true) => {
+---
+>     const loadSqls = (profileId) => {
+326d328
+<         const selectedValue = elements.sqlSelect.value;
+329a332
+>             profileSqls.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+331,338d333
+< 
+<             if (autoSelect) {
+<                 const lastUsedSqls = StorageService.get(STORAGE_KEYS.LAST_USED_SQL, {});
+<                 const lastSqlIdForThisProfile = lastUsedSqls[profileId];
+<                 if (lastSqlIdForThisProfile && elements.sqlSelect.querySelector(`option[value="${lastSqlIdForThisProfile}"]`)) {
+<                     elements.sqlSelect.value = lastSqlIdForThisProfile;
+<                 }
+<             }
+343,347c338,347
+<     const setLastUsedSql = (profileId, sqlId) => {
+<         if (!profileId) return;
+<         const lastUsedSqls = StorageService.get(STORAGE_KEYS.LAST_USED_SQL, {});
+<         lastUsedSqls[profileId] = sqlId;
+<         StorageService.set(STORAGE_KEYS.LAST_USED_SQL, lastUsedSqls);
+---
+>     const getProcessedData = () => {
+>         if (!currentQueryResult) return { columns: [], data: [] };
+>         const { columns: originalColumns, data: originalData } = currentQueryResult;
+>         const mode = viewStates.rowset.mode;
+>         if (mode === 'normal') {
+>             return { columns: originalColumns, data: originalData };
+>         }
+>         const dataWithId = originalData.map((row, index) => ({ ID: index + 1, ...row }));
+>         const columnsWithId = ['ID', ...originalColumns];
+>         return { columns: columnsWithId, data: dataWithId };
+374,376c374,377
+<         const { columns, data } = currentQueryResult; 
+<         let text = `查詢成功，共回傳 ${data.length} 筆資料。\n\n`; 
+<         const colWidths = columns.map(c => c.length);
+---
+>         const { columns, data } = getProcessedData(); 
+>         const isTransposed = viewStates.rowset.mode === 'transposed';
+>         let text = `查詢成功，共回傳 ${currentQueryResult.data.length} 筆資料。\n\n`; 
+>         const colWidths = columns.map(c => String(c).length);
+381,383c382,383
+< 
+<         if (viewStates.rowset.isTransposed) { 
+<             columns.forEach((col, i) => { text += col.padEnd(colWidths[i]) + ' | ' + data.map(row => String(row[col] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
+---
+>         if (isTransposed) { 
+>             columns.forEach((col, i) => { text += String(col).padEnd(colWidths[i]) + ' | ' + data.map(row => String(row[col] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
+385c385
+<             text += columns.map((c, i) => c.padEnd(colWidths[i])).join(' | ') + '\n'; 
+---
+>             text += columns.map((c, i) => String(c).padEnd(colWidths[i])).join(' | ') + '\n'; 
+393c393
+<         let { columns, data } = currentQueryResult; 
+---
+>         let { columns, data } = getProcessedData(); 
+395c395
+<         if (viewStates.rowset.isTransposed) { 
+---
+>         if (viewStates.rowset.mode === 'transposed') { 
+415c415
+<         let { columns, data } = currentQueryResult; 
+---
+>         let { columns, data } = getProcessedData(); 
+417,418c417
+< 
+<         if (viewStates.rowset.isTransposed) { 
+---
+>         if (viewStates.rowset.mode === 'transposed') { 
+422d420
+<             
+428d425
+< 
+433d429
+<             
+441,442c437,438
+<                         if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) { 
+<                         } else { 
+---
+>                         if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) {} 
+>                         else { 
+471c467
+<         const { columns, data } = currentQueryResult; 
+---
+>         const { columns, data } = getProcessedData(); 
+473c469
+<         if (viewStates.rowset.isTransposed) { 
+---
+>         if (viewStates.rowset.mode === 'transposed') { 
+501d496
+<             const profileId = elements.profileSelect.value;
+504,511c499
+<             if (sql) {
+<                 elements.sqlStatement.value = sql.statement;
+<             } else if (!isResultPage) {
+<                 elements.sqlStatement.value = '';
+<             }
+<             if (!isResultPage) {
+<                  setLastUsedSql(profileId, sqlId);
+<             }
+---
+>             elements.sqlStatement.value = sql ? sql.statement : '';
+524,528c512,516
+<             const selectedId = elements.profileSelect.value;
+<             const currentProfile = selectedId ? profiles.find(p => p.id == selectedId) : null;
+<             const promptTitle = "請輸入設定檔名稱：\n- 維持原有名稱可更新內容\n- 輸入新名稱則建立副本";
+<             const newName = prompt(promptTitle, currentProfile ? currentProfile.name : "");
+<             if (!newName) return;
+---
+>             const promptTitle = "請輸入設定檔名稱：\n- 輸入既有名稱可更新\n- 輸入新名稱則建立";
+>             const currentName = elements.profileSelect.value ? profiles.find(p=>p.id === elements.profileSelect.value).name : "";
+>             const targetName = prompt(promptTitle, currentName);
+>             if (!targetName) return;
+> 
+530c518
+<                 name: newName, hostname: elements.hostname.value.trim(), sid: elements.sid.value.trim(),
+---
+>                 name: targetName, hostname: elements.hostname.value.trim(), sid: elements.sid.value.trim(),
+534,536c522,526
+<             if (currentProfile && newName === currentProfile.name) {
+<                 const profileIndex = profiles.findIndex(p => p.id == selectedId);
+<                 profiles[profileIndex] = { ...currentProfile, ...profileData };
+---
+>             
+>             const existingProfile = profiles.find(p => p.name === targetName);
+>             if (existingProfile) {
+>                 const profileIndex = profiles.findIndex(p => p.id == existingProfile.id);
+>                 profiles[profileIndex] = { ...existingProfile, ...profileData };
+537a528
+>                 localStorage.setItem(STORAGE_KEYS.LAST_PROFILE_ID, existingProfile.id);
+539d529
+<                 elements.profileSelect.value = selectedId;
+541d530
+<                 if (profiles.some(p => p.name === newName)) return alert('此設定檔名稱已存在');
+566,574c555,564
+<             const selectedSqlId = elements.sqlSelect.value;
+<             const currentSql = selectedSqlId ? sqls.find(s => s.id == selectedSqlId) : null;
+<             const promptTitle = "請輸入 SQL 名稱：\n- 維持原有名稱可更新內容\n- 輸入新名稱則建立副本";
+<             const newName = prompt(promptTitle, currentSql ? currentSql.name : "");
+<             if (!newName) return;
+<             const sqlData = { name: newName, statement: elements.sqlStatement.value.trim() };
+<             if (currentSql && newName === currentSql.name) {
+<                 const sqlIndex = sqls.findIndex(s => s.id == selectedSqlId);
+<                 sqls[sqlIndex] = { ...currentSql, ...sqlData };
+---
+>             const currentSql = elements.sqlSelect.value ? sqls.find(s => s.id == elements.sqlSelect.value) : null;
+>             const promptTitle = "請輸入 SQL 名稱：\n- 輸入既有名稱可更新\n- 輸入新名稱則建立";
+>             const targetName = prompt(promptTitle, currentSql ? currentSql.name : "");
+>             if (!targetName) return;
+>             const sqlData = { name: targetName, statement: elements.sqlStatement.value.trim() };
+>             
+>             const existingSql = sqls.find(s => s.profile_id == profileId && s.name === targetName);
+>             if (existingSql) {
+>                 const sqlIndex = sqls.findIndex(s => s.id == existingSql.id);
+>                 sqls[sqlIndex] = { ...existingSql, ...sqlData };
+576d565
+<                 setLastUsedSql(profileId, currentSql.id);
+578c567
+<                 elements.sqlSelect.value = currentSql.id;
+---
+>                 elements.sqlSelect.value = existingSql.id;
+580d568
+<                 if (sqls.some(s => s.profile_id == profileId && s.name === newName)) return alert(`此設定檔下已有名為 '${newName}' 的 SQL`);
+584d571
+<                 setLastUsedSql(profileId, newSql.id);
+597,599c584
+<                 const profileId = elements.profileSelect.value;
+<                 setLastUsedSql(profileId, '');
+<                 loadSqls(profileId);
+---
+>                 loadSqls(elements.profileSelect.value);
+620c605,614
+<             elements.sqlStatement.value = execSqlStatement;
+---
+>             if (execCredentials) {
+>                 elements.sqlStatement.value = execCredentials.sql;
+>                 elements.profileSelect.value = execCredentials.profileId;
+>                 elements.hostname.value = execCredentials.hostname;
+>                 elements.sid.value = execCredentials.sid;
+>                 elements.user.value = execCredentials.user;
+>                 elements.password.value = execCredentials.pwd;
+>                 elements.dbType.value = execCredentials.db_type;
+>                 elements.port.value = execCredentials.port;
+>             }
+633,644c627,631
+<             switch(targetId) {
+<                 case 'format-rowset':
+<                     if (activeFormat === 'rowset') viewStates.rowset.isTransposed = !viewStates.rowset.isTransposed;
+<                     activeFormat = 'rowset';
+<                     break;
+<                 case 'format-datatables': activeFormat = 'datatables'; break;
+<                 case 'format-html':
+<                     if (activeFormat === 'html') viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+<                     activeFormat = 'html';
+<                     break;
+<                 case 'format-json': activeFormat = 'json'; break;
+<                 case 'format-csv': exportCsv(); return; 
+---
+>             const newFormat = targetId.replace('format-', '');
+> 
+>             if (newFormat === 'csv') {
+>                 exportCsv();
+>                 return;
+645a633,644
+>             
+>             if (activeFormat === newFormat) {
+>                 if (newFormat === 'rowset') {
+>                     const modes = ['normal', 'withId', 'transposed'];
+>                     const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
+>                     viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
+>                 } else if (newFormat === 'html') {
+>                     viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+>                 }
+>             }
+>             
+>             activeFormat = newFormat;
+679a679
+>                 execCredentials = { ...queryData };
+689c689
+<             profiles.forEach(p => elements.profileSelect.add(new Option(p.name, p.id)));
+---
+>             profiles.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')).forEach(p => elements.profileSelect.add(new Option(p.name, p.id)));

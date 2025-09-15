@@ -1,0 +1,63 @@
+134a135
+> // 使用 IIFE (立即執行函式運算式) 建立一個私有作用域，避免污染全域
+137a139
+>     // --- 1. 常數定義 (Constants) ---
+145a148
+>     // --- 2. 狀態管理 (State Management) ---
+157a161
+>     // --- 3. DOM 元素快取 ---
+184a189
+>     // --- 4. 服務與輔助函式 (Services & Helpers) ---
+248a254,255
+>     
+>     // --- 5. 核心業務邏輯 (Core Business Logic) ---
+337a345,346
+>     // --- 6. 畫面渲染函式 (View Renderers) ---
+> 
+493a503,504
+>     // --- 7. 事件監聽器 (Event Listeners & Controllers) ---
+> 
+499c510,514
+<             elements.sqlStatement.value = sql ? sql.statement : '';
+---
+>             if (sql) {
+>                 elements.sqlStatement.value = sql.statement;
+>             } else {
+>                 elements.sqlStatement.value = '';
+>             }
+627,641c642,657
+<             const newFormat = targetId.replace('format-', '');
+< 
+<             if (newFormat === 'csv') {
+<                 exportCsv();
+<                 return;
+<             }
+<             
+<             if (activeFormat === newFormat) {
+<                 if (newFormat === 'rowset') {
+<                     const modes = ['normal', 'withId', 'transposed'];
+<                     const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
+<                     viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
+<                 } else if (newFormat === 'html') {
+<                     viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+<                 }
+---
+>             switch(targetId) {
+>                 case 'format-rowset':
+>                     if (activeFormat === 'rowset') {
+>                         const modes = ['normal', 'withId', 'transposed'];
+>                         const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
+>                         viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
+>                     }
+>                     activeFormat = 'rowset';
+>                     break;
+>                 case 'format-datatables': activeFormat = 'datatables'; break;
+>                 case 'format-html':
+>                     if(activeFormat === 'html') viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+>                     activeFormat = 'html';
+>                     break;
+>                 case 'format-json': activeFormat = 'json'; break;
+>                 case 'format-csv': exportCsv(); return; 
+643,644d658
+<             
+<             activeFormat = newFormat;

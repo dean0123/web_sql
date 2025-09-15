@@ -396,8 +396,6 @@
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
             tableData = transposed.bodyData;
-            // Dean 手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
-            updateActiveFormatButton();
         } else { 
             headers = columns; 
             tableData = data.map(row => columns.map(col => row[col])); 
@@ -708,4 +706,5 @@
 </script>
 </body>
 </html>
+
 

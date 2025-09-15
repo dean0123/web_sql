@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -151,7 +152,7 @@
     
     let activeFormat = 'rowset';
     let viewStates = {
-        rowset: { mode: 'normal' },
+        isTransposed: false,
         isRowSpan: false
     };
 
@@ -271,7 +272,7 @@
             execCredentials = { ...queryData };
             sessionStorage.setItem(window.location.search, JSON.stringify(currentQueryResult));
 
-            viewStates.rowset.mode = 'normal';
+            viewStates.isTransposed = false;
             viewStates.isRowSpan = false;
             activeFormat = 'rowset';
             renderResult();
@@ -335,18 +336,6 @@
         elements.sqlSelect.dispatchEvent(new Event('change'));
     };
     
-    const getProcessedData = () => {
-        if (!currentQueryResult) return { columns: [], data: [] };
-        const { columns: originalColumns, data: originalData } = currentQueryResult;
-        const mode = viewStates.rowset.mode;
-        if (mode === 'normal') {
-            return { columns: originalColumns, data: originalData };
-        }
-        const dataWithId = originalData.map((row, index) => ({ ID: index + 1, ...row }));
-        const columnsWithId = ['ID', ...originalColumns];
-        return { columns: columnsWithId, data: dataWithId };
-    };
-
     const renderResult = () => {
         if (!currentQueryResult) return;
         switch(activeFormat) {
@@ -371,15 +360,14 @@
     };
 
     const renderRowSet = () => { 
-        const { columns, data } = getProcessedData(); 
-        const isTransposed = viewStates.rowset.mode === 'transposed';
-        let text = `查詢成功，共回傳 ${currentQueryResult.data.length} 筆資料。\n\n`; 
+        const { columns, data } = currentQueryResult;
+        let text = `查詢成功，共回傳 ${data.length} 筆資料。\n\n`; 
         const colWidths = columns.map(c => String(c).length);
         data.forEach(row => columns.forEach((col, i) => { 
             const val = String(row[col] ?? ''); 
             if (val.length > colWidths[i]) colWidths[i] = val.length; 
         }));
-        if (isTransposed) { 
+        if (viewStates.isTransposed) { 
             columns.forEach((col, i) => { text += String(col).padEnd(colWidths[i]) + ' | ' + data.map(row => String(row[col] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
         } else { 
             text += columns.map((c, i) => String(c).padEnd(colWidths[i])).join(' | ') + '\n'; 
@@ -390,14 +378,12 @@
     };
 
     const renderDataTables = () => { 
-        let { columns, data } = getProcessedData(); 
+        let { columns, data } = currentQueryResult;
         let headers, tableData; 
-        if (viewStates.rowset.mode === 'transposed') { 
+        if (viewStates.isTransposed) { 
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
             tableData = transposed.bodyData;
-            // Dean 手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
-            updateActiveFormatButton();
         } else { 
             headers = columns; 
             tableData = data.map(row => columns.map(col => row[col])); 
@@ -414,9 +400,9 @@
     };
 
     const renderHtmlTable = () => { 
-        let { columns, data } = getProcessedData(); 
+        let { columns, data } = currentQueryResult;
         let tableHtml;
-        if (viewStates.rowset.mode === 'transposed') { 
+        if (viewStates.isTransposed) { 
             const transposed = getTransposedData(columns, data); 
             const headers = transposed.headers; 
             const bodyData = transposed.bodyData;
@@ -466,9 +452,9 @@
     };
     
     const exportCsv = () => { 
-        const { columns, data } = getProcessedData(); 
+        let { columns, data } = currentQueryResult;
         let headers, csvContent; 
-        if (viewStates.rowset.mode === 'transposed') { 
+        if (viewStates.isTransposed) { 
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
             const bodyData = transposed.bodyData;
@@ -639,7 +625,7 @@
                     const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
                     viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
                 } else if (newFormat === 'html') {
-                    viewStates.isRowSpan = !viewStates.isRowSpan;
+                    viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
                 }
             }
             

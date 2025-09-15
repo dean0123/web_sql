@@ -138,7 +138,7 @@
     const STORAGE_KEYS = {
         PROFILES: 'profiles',
         SQLS: 'sqls',
-        LAST_PROFILE_ID: 'lastProfileId'
+        LAST_PROFILE_ID: 'lastProfileId',
     };
     const ROW_SPAN_COLUMN_COUNT = 3;
     const LOCAL_STORAGE_QUOTA_MB = 5;
@@ -152,7 +152,7 @@
     let activeFormat = 'rowset';
     let viewStates = {
         rowset: { mode: 'normal' },
-        isRowSpan: false
+        html: { isRowSpan: false }
     };
 
     const elements = {
@@ -272,7 +272,7 @@
             sessionStorage.setItem(window.location.search, JSON.stringify(currentQueryResult));
 
             viewStates.rowset.mode = 'normal';
-            viewStates.isRowSpan = false;
+            viewStates.html.isRowSpan = false;
             activeFormat = 'rowset';
             renderResult();
             elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
@@ -396,8 +396,6 @@
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
             tableData = transposed.bodyData;
-            // Dean 手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
-            updateActiveFormatButton();
         } else { 
             headers = columns; 
             tableData = data.map(row => columns.map(col => row[col])); 
@@ -429,7 +427,7 @@
             const headers = columns; 
             const bodyRows = data;
             tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
-            if (viewStates.isRowSpan && bodyRows.length > 0) { 
+            if (viewStates.html.isRowSpan && bodyRows.length > 0) { 
                 let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null); 
                 for (let i = 0; i < bodyRows.length; i++) { 
                     tableHtml += '<tr>'; 
@@ -639,7 +637,7 @@
                     const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
                     viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
                 } else if (newFormat === 'html') {
-                    viewStates.isRowSpan = !viewStates.isRowSpan;
+                    viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
                 }
             }
             

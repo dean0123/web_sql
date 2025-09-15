@@ -132,29 +132,33 @@
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script>
+// 使用 IIFE (立即執行函式運算式) 建立一個私有作用域，避免污染全域
 (function() {
     'use strict';
 
+    // --- 1. 常數定義 (Constants) ---
     const STORAGE_KEYS = {
         PROFILES: 'profiles',
         SQLS: 'sqls',
-        LAST_PROFILE_ID: 'lastProfileId'
+        LAST_PROFILE_ID: 'lastProfileId',
+        LAST_USED_SQL: 'lastUsedSqlPerProfile'
     };
     const ROW_SPAN_COLUMN_COUNT = 3;
     const LOCAL_STORAGE_QUOTA_MB = 5;
 
+    // --- 2. 狀態管理 (State Management) ---
     let profiles = [];
     let sqls = [];
     let currentQueryResult = null;
     let execSqlStatement = '';
-    let execCredentials = null;
     
     let activeFormat = 'rowset';
     let viewStates = {
-        rowset: { mode: 'normal' },
-        isRowSpan: false
+        rowset: { isTransposed: false },
+        html: { isRowSpan: false }
     };
 
+    // --- 3. DOM 元素快取 ---
     const elements = {
         profileSelect: document.getElementById('profiles-select'),
         saveProfileBtn: document.getElementById('save-profile-btn'),
@@ -182,15 +186,21 @@
         storageUsageDisplay: document.getElementById('storage-usage-display'),
     };
 
+    // --- 4. 服務與輔助函式 (Services & Helpers) ---
     const StorageService = {
         get: (key, defaultValue = []) => {
             const item = localStorage.getItem(key);
             if (item === null) return defaultValue;
-            try { return JSON.parse(item); } catch (e) { console.error(`Error parsing localStorage item ${key}:`, e); return defaultValue; }
+            try {
+                return JSON.parse(item);
+            } catch (e) {
+                console.error(`Error parsing localStorage item ${key}:`, e);
+                return defaultValue;
+            }
         },
         set: (key, value) => {
             localStorage.setItem(key, JSON.stringify(value));
-            updateLocalStorageUsage();
+            updateLocalStorageUsage(); // 每次寫入都更新用量顯示
         }
     };
     
@@ -230,9 +240,12 @@
     };
 
     const getCredentials = () => ({
-        hostname: elements.hostname.value.trim(), sid: elements.sid.value.trim(),
-        user: elements.user.value.trim(), pwd: elements.password.value,
-        db_type: elements.dbType.value, port: parseInt(elements.port.value) || null,
+        hostname: elements.hostname.value.trim(),
+        sid: elements.sid.value.trim(),
+        user: elements.user.value.trim(),
+        pwd: elements.password.value,
+        db_type: elements.dbType.value,
+        port: parseInt(elements.port.value) || null,
         profileId: elements.profileSelect.value
     });
 
@@ -241,11 +254,13 @@
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             const value = localStorage.getItem(key);
-            totalSize += (key.length + (value || '').length) * 2;
+            totalSize += (key.length + value.length) * 2; // UTF-16 in JS, 2 bytes per char
         }
         const usageInMB = (totalSize / (1024 * 1024)).toFixed(1);
         elements.storageUsageDisplay.textContent = `本機儲存: ${usageInMB} / ${LOCAL_STORAGE_QUOTA_MB.toFixed(1)} MB`;
     };
+    
+    // --- 5. 核心業務邏輯 (Core Business Logic) ---
     
     const runQuery = async (queryData) => {
         elements.resultContainer.innerHTML = '<div class="result-box">查詢中...</div>';
@@ -268,11 +283,10 @@
             }
             
             execSqlStatement = queryData.sql;
-            execCredentials = { ...queryData };
             sessionStorage.setItem(window.location.search, JSON.stringify(currentQueryResult));
 
-            viewStates.rowset.mode = 'normal';
-            viewStates.isRowSpan = false;
+            viewStates.rowset.isTransposed = false;
+            viewStates.html.isRowSpan = false;
             activeFormat = 'rowset';
             renderResult();
             elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
@@ -286,8 +300,6 @@
 
     const loadProfiles = () => {
         profiles = StorageService.get(STORAGE_KEYS.PROFILES);
-        profiles.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
-        
         const selectedValue = elements.profileSelect.value;
         elements.profileSelect.innerHTML = '<option value="">-- 新增設定檔 --</option>';
         profiles.forEach(p => elements.profileSelect.add(new Option(p.name, p.id)));
@@ -324,28 +336,34 @@
         }
     };
 
-    const loadSqls = (profileId) => {
+    const loadSqls = (profileId, autoSelect = true) => {
         sqls = StorageService.get(STORAGE_KEYS.SQLS);
+        const selectedValue = elements.sqlSelect.value;
         elements.sqlSelect.innerHTML = '<option value="">-- 新增 SQL --</option>';
         if (profileId) {
             const profileSqls = sqls.filter(s => s.profile_id == profileId);
-            profileSqls.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
             profileSqls.forEach(s => elements.sqlSelect.add(new Option(s.name, s.id)));
+
+            if (autoSelect) {
+                const lastUsedSqls = StorageService.get(STORAGE_KEYS.LAST_USED_SQL, {});
+                const lastSqlIdForThisProfile = lastUsedSqls[profileId];
+
+                if (lastSqlIdForThisProfile && elements.sqlSelect.querySelector(`option[value="${lastSqlIdForThisProfile}"]`)) {
+                    elements.sqlSelect.value = lastSqlIdForThisProfile;
+                }
+            }
         }
         elements.sqlSelect.dispatchEvent(new Event('change'));
     };
     
-    const getProcessedData = () => {
-        if (!currentQueryResult) return { columns: [], data: [] };
-        const { columns: originalColumns, data: originalData } = currentQueryResult;
-        const mode = viewStates.rowset.mode;
-        if (mode === 'normal') {
-            return { columns: originalColumns, data: originalData };
-        }
-        const dataWithId = originalData.map((row, index) => ({ ID: index + 1, ...row }));
-        const columnsWithId = ['ID', ...originalColumns];
-        return { columns: columnsWithId, data: dataWithId };
+    const setLastUsedSql = (profileId, sqlId) => {
+        if (!profileId) return;
+        const lastUsedSqls = StorageService.get(STORAGE_KEYS.LAST_USED_SQL, {});
+        lastUsedSqls[profileId] = sqlId;
+        StorageService.set(STORAGE_KEYS.LAST_USED_SQL, lastUsedSqls);
     };
+
+    // --- 6. 畫面渲染函式 (View Renderers) ---
 
     const renderResult = () => {
         if (!currentQueryResult) return;
@@ -359,30 +377,33 @@
     };
     
     const getTransposedData = (columns, data) => { 
-        if (!columns || columns.length === 0 || !data || data.length === 0) {
-            return { headers: [], bodyData: [] };
-        }
-        const firstColumnName = columns[0];
-        const newHeaders = [firstColumnName, ...data.map(row => row[firstColumnName] ?? '')];
-        const newBodyData = columns.slice(1).map(colName => {
-            return [colName, ...data.map(originalRow => originalRow[colName] ?? '')];
-        });
-        return { headers: newHeaders, bodyData: newBodyData };
+        if (!columns || columns.length === 0 || !data || data.length === 0) return { headers: [], bodyRows: [] }; 
+        const firstColumnName = columns[0]; 
+        const newHeaders = [firstColumnName, ...data.map(row => row[firstColumnName] ?? '')]; 
+        const newBodyRows = columns.slice(1).map(colName => { 
+            const newRow = { [firstColumnName]: colName }; 
+            data.forEach((originalRow, index) => { 
+                const headerKey = newHeaders[index + 1]; 
+                newRow[headerKey] = originalRow[colName] ?? ''; 
+            }); 
+            return newRow; 
+        }); 
+        return { headers: newHeaders, bodyRows: newBodyRows }; 
     };
 
     const renderRowSet = () => { 
-        const { columns, data } = getProcessedData(); 
-        const isTransposed = viewStates.rowset.mode === 'transposed';
-        let text = `查詢成功，共回傳 ${currentQueryResult.data.length} 筆資料。\n\n`; 
-        const colWidths = columns.map(c => String(c).length);
+        const { columns, data } = currentQueryResult; 
+        let text = `查詢成功，共回傳 ${data.length} 筆資料。\n\n`; 
+        const colWidths = columns.map(c => c.length);
         data.forEach(row => columns.forEach((col, i) => { 
             const val = String(row[col] ?? ''); 
             if (val.length > colWidths[i]) colWidths[i] = val.length; 
         }));
-        if (isTransposed) { 
-            columns.forEach((col, i) => { text += String(col).padEnd(colWidths[i]) + ' | ' + data.map(row => String(row[col] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
+
+        if (viewStates.rowset.isTransposed) { 
+            columns.forEach((col, i) => { text += col.padEnd(colWidths[i]) + ' | ' + data.map(row => String(row[col] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
         } else { 
-            text += columns.map((c, i) => String(c).padEnd(colWidths[i])).join(' | ') + '\n'; 
+            text += columns.map((c, i) => c.padEnd(colWidths[i])).join(' | ') + '\n'; 
             text += columns.map((c, i) => '-'.repeat(colWidths[i])).join('-|-') + '\n'; 
             data.forEach(row => { text += columns.map((c, i) => String(row[c] ?? '').padEnd(colWidths[i])).join(' | ') + '\n'; }); 
         } 
@@ -390,74 +411,61 @@
     };
 
     const renderDataTables = () => { 
-        let { columns, data } = getProcessedData(); 
+        let { columns, data } = currentQueryResult; 
         let headers, tableData; 
-        if (viewStates.rowset.mode === 'transposed') { 
+        if (viewStates.rowset.isTransposed) { 
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
-            tableData = transposed.bodyData;
-            // Dean 手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
-            updateActiveFormatButton();
+            tableData = transposed.bodyRows.map(row => headers.map(h => row[h])); 
         } else { 
             headers = columns; 
             tableData = data.map(row => columns.map(col => row[col])); 
         } 
         const tableId = `dt-${Date.now()}`; 
-        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"></table>`; 
-        $(`#${tableId}`).DataTable({ 
-            data: tableData, 
-            columns: headers.map(h => ({ title: h })),
-            destroy: true, 
-            scrollX: true, 
-            order: []
-        }); 
+        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead></table>`; 
+        $(`#${tableId}`).DataTable({ data: tableData, destroy: true, scrollX: true }); 
     };
 
     const renderHtmlTable = () => { 
-        let { columns, data } = getProcessedData(); 
-        let tableHtml;
-        if (viewStates.rowset.mode === 'transposed') { 
+        let { columns, data } = currentQueryResult; 
+        let headers, bodyRows; 
+        if (viewStates.rowset.isTransposed) { 
             const transposed = getTransposedData(columns, data); 
-            const headers = transposed.headers; 
-            const bodyData = transposed.bodyData;
-            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
-            bodyData.forEach(rowDataArray => {
-                tableHtml += '<tr>' + rowDataArray.map(cellData => `<td>${cellData ?? ''}</td>`).join('') + '</tr>';
-            });
-            tableHtml += '</tbody></table>';
+            headers = transposed.headers; 
+            bodyRows = transposed.bodyRows; 
         } else { 
-            const headers = columns; 
-            const bodyRows = data;
-            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
-            if (viewStates.isRowSpan && bodyRows.length > 0) { 
-                let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null); 
-                for (let i = 0; i < bodyRows.length; i++) { 
-                    tableHtml += '<tr>'; 
-                    for (let j = 0; j < headers.length; j++) { 
-                        const col = headers[j]; 
-                        const isSpanCol = j < ROW_SPAN_COLUMN_COUNT; 
-                        if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) {} 
-                        else { 
-                            lastValues[j] = bodyRows[i][col]; 
-                            let span = 1; 
-                            if (isSpanCol) { 
-                                for (let k = i + 1; k < bodyRows.length; k++) { 
-                                    if (bodyRows[k][col] === bodyRows[i][col]) span++; 
-                                    else break; 
-                                } 
+            headers = columns; 
+            bodyRows = data; 
+        } 
+        let tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
+        if (viewStates.html.isRowSpan && !viewStates.rowset.isTransposed && bodyRows.length > 0) { 
+            let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null); 
+            for (let i = 0; i < bodyRows.length; i++) { 
+                tableHtml += '<tr>'; 
+                for (let j = 0; j < headers.length; j++) { 
+                    const col = headers[j]; 
+                    const isSpanCol = j < ROW_SPAN_COLUMN_COUNT; 
+                    if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) { 
+                    } else { 
+                        lastValues[j] = bodyRows[i][col]; 
+                        let span = 1; 
+                        if (isSpanCol) { 
+                            for (let k = i + 1; k < bodyRows.length; k++) { 
+                                if (bodyRows[k][col] === bodyRows[i][col]) span++; 
+                                else break; 
                             } 
-                            tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${bodyRows[i][col] ?? ''}</td>`; 
                         } 
+                        tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${bodyRows[i][col] ?? ''}</td>`; 
                     } 
-                    tableHtml += '</tr>'; 
                 } 
-            } else { 
-                bodyRows.forEach(row => { 
-                    tableHtml += '<tr>' + headers.map(col => `<td>${row[col] ?? ''}</td>`).join('') + '</tr>'; 
-                }); 
+                tableHtml += '</tr>'; 
             } 
-            tableHtml += '</tbody></table>';
-        }
+        } else { 
+            bodyRows.forEach(row => { 
+                tableHtml += '<tr>' + headers.map(col => `<td>${row[col] ?? ''}</td>`).join('') + '</tr>'; 
+            }); 
+        } 
+        tableHtml += '</tbody></table>'; 
         elements.resultContainer.innerHTML = tableHtml; 
     };
     
@@ -466,41 +474,47 @@
     };
     
     const exportCsv = () => { 
-        const { columns, data } = getProcessedData(); 
-        let headers, csvContent; 
-        if (viewStates.rowset.mode === 'transposed') { 
+        const { columns, data } = currentQueryResult; 
+        let headers, rows; 
+        if (viewStates.rowset.isTransposed) { 
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
-            const bodyData = transposed.bodyData;
-            csvContent = headers.map(h => `"${String(h ?? '').replace(/"/g, '""')}"`).join(",") + "\r\n";
-            bodyData.forEach(rowDataArray => {
-                csvContent += rowDataArray.map(cellData => `"${String(cellData ?? '').replace(/"/g, '""')}"`).join(",") + "\r\n";
-            });
+            rows = transposed.bodyRows;
         } else { 
             headers = columns; 
-            const rows = data;
-            csvContent = headers.map(h => `"${String(h ?? '').replace(/"/g, '""')}"`).join(",") + "\r\n"; 
-            rows.forEach(row => { 
-                csvContent += headers.map(header => `"${String(row[header] ?? '').replace(/"/g, '""')}"`).join(",") + "\r\n"; 
-            }); 
+            rows = data; 
         } 
-        
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n"; 
+        rows.forEach(row => { csvContent += headers.map(header => `"${String(row[header] ?? '').replace(/"/g, '""')}"`).join(",") + "\r\n"; }); 
         const link = document.createElement("a"); 
-        link.setAttribute("href", 'data:text/csv;charset=utf-8,' + encodeURI(csvContent)); 
+        link.setAttribute("href", encodeURI(csvContent)); 
         link.setAttribute("download", "query_result.csv"); 
         document.body.appendChild(link); 
         link.click(); 
         document.body.removeChild(link); 
     };
 
+    // --- 7. 事件監聽器 (Event Listeners & Controllers) ---
+
     function setupEventListeners() {
         elements.profileSelect.addEventListener('change', handleProfileChange);
+        
         elements.sqlSelect.addEventListener('change', () => {
+            const profileId = elements.profileSelect.value;
             const sqlId = elements.sqlSelect.value;
             const sql = sqls.find(s => s.id == sqlId);
-            elements.sqlStatement.value = sql ? sql.statement : '';
+            if (sql) {
+                elements.sqlStatement.value = sql.statement;
+            } else if (!isResultPage) { // 如果是主頁面且沒有選中SQL，清空
+                elements.sqlStatement.value = '';
+            }
+            if (!isResultPage) {
+                 setLastUsedSql(profileId, sqlId);
+            }
         });
+        
         elements.dbType.addEventListener('change', setDefaultPort);
+
         elements.testConnBtn.addEventListener('click', async () => {
             try {
                 const result = await apiCall('/test-connection', 'POST', getCredentials());
@@ -509,27 +523,31 @@
                 showConnResult(error.message, true);
             }
         });
+
         elements.saveProfileBtn.addEventListener('click', () => {
             profiles = StorageService.get(STORAGE_KEYS.PROFILES);
-            const promptTitle = "請輸入設定檔名稱：\n- 輸入既有名稱可更新\n- 輸入新名稱則建立";
-            const currentName = elements.profileSelect.value ? profiles.find(p=>p.id === elements.profileSelect.value).name : "";
-            const targetName = prompt(promptTitle, currentName);
-            if (!targetName) return;
+            const selectedId = elements.profileSelect.value;
+            const currentProfile = selectedId ? profiles.find(p => p.id == selectedId) : null;
+            
+            const promptTitle = "請輸入設定檔名稱：\n- 維持原有名稱可更新內容\n- 輸入新名稱則建立副本";
+            const newName = prompt(promptTitle, currentProfile ? currentProfile.name : "");
+
+            if (!newName) return;
 
             const profileData = {
-                name: targetName, hostname: elements.hostname.value.trim(), sid: elements.sid.value.trim(),
+                name: newName, hostname: elements.hostname.value.trim(), sid: elements.sid.value.trim(),
                 user: elements.user.value.trim(), password: elements.password.value,
                 db_type: elements.dbType.value, port: parseInt(elements.port.value) || null
             };
             
-            const existingProfile = profiles.find(p => p.name === targetName);
-            if (existingProfile) {
-                const profileIndex = profiles.findIndex(p => p.id == existingProfile.id);
-                profiles[profileIndex] = { ...existingProfile, ...profileData };
+            if (currentProfile && newName === currentProfile.name) {
+                const profileIndex = profiles.findIndex(p => p.id == selectedId);
+                profiles[profileIndex] = { ...currentProfile, ...profileData };
                 StorageService.set(STORAGE_KEYS.PROFILES, profiles);
-                localStorage.setItem(STORAGE_KEYS.LAST_PROFILE_ID, existingProfile.id);
                 loadProfiles();
+                elements.profileSelect.value = selectedId;
             } else {
+                if (profiles.some(p => p.name === newName)) return alert('此設定檔名稱已存在');
                 const newProfile = { ...profileData, id: Date.now().toString() };
                 profiles.push(newProfile);
                 StorageService.set(STORAGE_KEYS.PROFILES, profiles);
@@ -537,11 +555,14 @@
                 loadProfiles();
             }
         });
+        
         elements.deleteProfileBtn.addEventListener('click', () => {
             const selectedId = elements.profileSelect.value;
             if (!selectedId) return;
+
             const profileToDelete = StorageService.get(STORAGE_KEYS.PROFILES).find(p => p.id == selectedId);
             if (!profileToDelete) return;
+            
             if (confirm(`確定要刪除設定檔 '${profileToDelete.name}' 嗎？`)) {
                 profiles = StorageService.get(STORAGE_KEYS.PROFILES).filter(p => p.id != selectedId);
                 StorageService.set(STORAGE_KEYS.PROFILES, profiles);
@@ -550,42 +571,56 @@
                 loadProfiles();
             }
         });
+
         elements.saveSqlBtn.addEventListener('click', () => {
             const profileId = elements.profileSelect.value;
             if (!profileId) return alert('請先選擇一個資料庫設定檔');
-            sqls = StorageService.get(STORAGE_KEYS.SQLS);
-            const currentSql = elements.sqlSelect.value ? sqls.find(s => s.id == elements.sqlSelect.value) : null;
-            const promptTitle = "請輸入 SQL 名稱：\n- 輸入既有名稱可更新\n- 輸入新名稱則建立";
-            const targetName = prompt(promptTitle, currentSql ? currentSql.name : "");
-            if (!targetName) return;
-            const sqlData = { name: targetName, statement: elements.sqlStatement.value.trim() };
             
-            const existingSql = sqls.find(s => s.profile_id == profileId && s.name === targetName);
-            if (existingSql) {
-                const sqlIndex = sqls.findIndex(s => s.id == existingSql.id);
-                sqls[sqlIndex] = { ...existingSql, ...sqlData };
+            sqls = StorageService.get(STORAGE_KEYS.SQLS);
+            const selectedSqlId = elements.sqlSelect.value;
+            const currentSql = selectedSqlId ? sqls.find(s => s.id == selectedSqlId) : null;
+
+            const promptTitle = "請輸入 SQL 名稱：\n- 維持原有名稱可更新內容\n- 輸入新名稱則建立副本";
+            const newName = prompt(promptTitle, currentSql ? currentSql.name : "");
+            
+            if (!newName) return;
+
+            const sqlData = { name: newName, statement: elements.sqlStatement.value.trim() };
+
+            if (currentSql && newName === currentSql.name) {
+                const sqlIndex = sqls.findIndex(s => s.id == selectedSqlId);
+                sqls[sqlIndex] = { ...currentSql, ...sqlData };
                 StorageService.set(STORAGE_KEYS.SQLS, sqls);
+                setLastUsedSql(profileId, currentSql.id);
                 loadSqls(profileId);
-                elements.sqlSelect.value = existingSql.id;
+                elements.sqlSelect.value = currentSql.id;
             } else {
+                if (sqls.some(s => s.profile_id == profileId && s.name === newName)) return alert(`此設定檔下已有名為 '${newName}' 的 SQL`);
                 const newSql = { ...sqlData, id: Date.now().toString(), profile_id: profileId };
                 sqls.push(newSql);
                 StorageService.set(STORAGE_KEYS.SQLS, sqls);
+                setLastUsedSql(profileId, newSql.id);
                 loadSqls(profileId);
                 elements.sqlSelect.value = newSql.id;
             }
         });
+
         elements.deleteSqlBtn.addEventListener('click', () => {
             const sqlId = elements.sqlSelect.value;
             if (!sqlId) return;
+            
             const sqlToDelete = StorageService.get(STORAGE_KEYS.SQLS).find(s => s.id == sqlId);
             if (!sqlToDelete) return;
+
             if (confirm(`確定要刪除 SQL '${sqlToDelete.name}' 嗎？`)) {
                 sqls = StorageService.get(STORAGE_KEYS.SQLS).filter(s => s.id != sqlId);
                 StorageService.set(STORAGE_KEYS.SQLS, sqls);
-                loadSqls(elements.profileSelect.value);
+                const profileId = elements.profileSelect.value;
+                setLastUsedSql(profileId, '');
+                loadSqls(profileId);
             }
         });
+
         elements.executeSqlBtn.addEventListener('click', () => {
             const queryData = {
                 ...getCredentials(),
@@ -594,28 +629,25 @@
             };
             runQuery(queryData);
         });
+
         elements.requestQueryBtn.addEventListener('click', () => {
             const sqlForRequest = elements.sqlStatement.value.trim();
             if (!sqlForRequest) return alert('請輸入 SQL 語句');
+            
             const queryData = {
                 ...getCredentials(),
                 sql: sqlForRequest,
                 max_rows: parseInt(elements.maxRows.value) || 200
             };
+
             const queryId = `query_${Date.now()}`;
             sessionStorage.setItem(queryId, JSON.stringify(queryData));
-            if (execCredentials) {
-                elements.sqlStatement.value = execCredentials.sql;
-                elements.profileSelect.value = execCredentials.profileId;
-                elements.hostname.value = execCredentials.hostname;
-                elements.sid.value = execCredentials.sid;
-                elements.user.value = execCredentials.user;
-                elements.password.value = execCredentials.pwd;
-                elements.dbType.value = execCredentials.db_type;
-                elements.port.value = execCredentials.port;
-            }
+            
+            elements.sqlStatement.value = execSqlStatement;
+            
             window.location.href = `${window.location.pathname}?queryId=${queryId}`;
         });
+        
         elements.clearSqlBtn.addEventListener('click', () => {
             if (elements.sqlStatement.value !== '') {
                 elements.sqlStatement.value = '';
@@ -623,32 +655,29 @@
                 elements.sqlStatement.value = execSqlStatement;
             }
         });
+
         elements.formatControls.addEventListener('click', (e) => {
             if (!e.target.matches('button') || !currentQueryResult) return;
             const targetId = e.target.id;
-            const newFormat = targetId.replace('format-', '');
-
-            if (newFormat === 'csv') {
-                exportCsv();
-                return;
+            switch(targetId) {
+                case 'format-rowset':
+                    if (activeFormat === 'rowset') viewStates.rowset.isTransposed = !viewStates.rowset.isTransposed;
+                    activeFormat = 'rowset';
+                    break;
+                case 'format-datatables': activeFormat = 'datatables'; break;
+                case 'format-html':
+                    if (activeFormat === 'html') viewStates.html.isRowSpan = !viewStates.html.isRowSpan;
+                    activeFormat = 'html';
+                    break;
+                case 'format-json': activeFormat = 'json'; break;
+                case 'format-csv': exportCsv(); return; 
             }
-            
-            if (activeFormat === newFormat) {
-                if (newFormat === 'rowset') {
-                    const modes = ['normal', 'withId', 'transposed'];
-                    const currentModeIndex = modes.indexOf(viewStates.rowset.mode);
-                    viewStates.rowset.mode = modes[(currentModeIndex + 1) % modes.length];
-                } else if (newFormat === 'html') {
-                    viewStates.isRowSpan = !viewStates.isRowSpan;
-                }
-            }
-            
-            activeFormat = newFormat;
             renderResult();
         });
     }
 
     // --- 8. 初始化 (Initialization) ---
+    
     const urlParams = new URLSearchParams(window.location.search);
     const queryId = urlParams.get('queryId');
     const isResultPage = !!queryId;
@@ -665,7 +694,7 @@
             const queryData = JSON.parse(queryDataJSON);
             
             Object.keys(queryData).forEach(key => {
-                if (elements[key] && key !== 'sql') {
+                if (elements[key] && key !== 'sql') { // 避免覆蓋 sqlStatement
                     elements[key].value = queryData[key];
                 }
             });
@@ -678,7 +707,6 @@
             if (cachedResultJSON) {
                 currentQueryResult = JSON.parse(cachedResultJSON);
                 execSqlStatement = queryData.sql;
-                execCredentials = { ...queryData };
                 elements.responseTimeDisplay.textContent = "(來自快取)";
                 renderResult();
                 elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
@@ -688,7 +716,7 @@
             
             profiles = StorageService.get(STORAGE_KEYS.PROFILES);
             elements.profileSelect.innerHTML = '<option value="">-- 新增設定檔 --</option>';
-            profiles.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')).forEach(p => elements.profileSelect.add(new Option(p.name, p.id)));
+            profiles.forEach(p => elements.profileSelect.add(new Option(p.name, p.id)));
             
             const profileId = queryData.profileId;
             if (profileId) {
@@ -704,7 +732,7 @@
 
     initializeApp();
 
-})();
+})(); // 結束 IIFE
 </script>
 </body>
 </html>
