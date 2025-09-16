@@ -18,9 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 步驟 4: 複製並解壓縮 Oracle Instant Client
-# 警告：您必須手動下載 instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip
-# 並將其放置在與此 Dockerfile 相同的目錄下。
-#COPY instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip /tmp/instantclient.zip
+# 下載 instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip
 RUN wget ${ORACLE_CLIENT_URL} -O /tmp/instantclient.zip && unzip /tmp/instantclient.zip -d /opt/oracle/ && \
     rm /tmp/instantclient.zip
 
