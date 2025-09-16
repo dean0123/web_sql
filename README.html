@@ -3,184 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DB Web Query Tool - 專案說明文件</title>
+    <title>DB Web SQL Tool - 專案說明文件</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.8;
-            margin: 0;
-            padding: 0;
-            background-color: #f8f9fa;
-            color: #343a40;
         }
-        .container {
-            max-width: 960px;
-            margin: 2rem auto;
-            background: #ffffff;
-            padding: 2rem 3rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        .content-section {
+            @apply mb-12;
         }
-        header {
-            border-bottom: 2px solid #0056b3;
-            padding-bottom: 1rem;
-            margin-bottom: 2rem;
-            text-align: center;
+        .content-section h2 {
+            @apply text-2xl font-bold text-gray-800 border-b-2 border-gray-200 pb-2 mb-4;
         }
-        h1 {
-            color: #0056b3;
-            font-size: 2.5rem;
-            margin: 0;
+        .content-section h3 {
+            @apply text-xl font-semibold text-gray-700 mt-6 mb-2;
         }
-        h2 {
-            color: #0056b3;
-            border-bottom: 1px solid #dee2e6;
-            padding-bottom: 0.5rem;
-            margin-top: 2.5rem;
-            font-size: 1.8rem;
+        .content-section p, .content-section ul {
+            @apply text-gray-600 leading-relaxed;
         }
-        h3 {
-            color: #17a2b8;
-            font-size: 1.4rem;
-            margin-top: 2rem;
+        .content-section li {
+            @apply mb-2;
         }
-        p {
-            font-size: 1.1rem;
-            color: #495057;
+        .content-section code {
+            @apply bg-gray-100 text-red-600 px-2 py-1 rounded-md text-sm;
         }
-        code {
-            background-color: #e9ecef;
-            padding: 0.2em 0.4em;
-            margin: 0;
-            font-size: 90%;
-            border-radius: 3px;
-            font-family: "Courier New", Courier, monospace;
+        .content-section pre {
+            @apply bg-gray-800 text-white p-4 rounded-lg overflow-x-auto text-sm;
         }
-        pre {
-            background-color: #212529;
-            color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 5px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-size: 0.9rem;
+         .feature-card {
+            @apply bg-white p-4 border border-gray-200 rounded-lg;
         }
-        ul {
-            padding-left: 20px;
-        }
-        li {
-            margin-bottom: 0.75rem;
-            font-size: 1.1rem;
-        }
-        .badge {
-            display: inline-block;
-            padding: 0.3em 0.6em;
-            font-size: 85%;
-            font-weight: 700;
-            line-height: 1;
-            color: #fff;
-            text-align: center;
-            white-space: nowrap;
-            vertical-align: baseline;
-            border-radius: 0.25rem;
-        }
-        .badge-primary { background-color: #007bff; }
-        .badge-secondary { background-color: #6c757d; }
-        .badge-success { background-color: #28a745; }
-        .badge-info { background-color: #17a2b8; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>DB Web Query Tool 專案說明文件</h1>
+<body class="bg-gray-50">
+    <div class="container mx-auto max-w-4xl py-12 px-8">
+
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800">DB Web SQL Tool 專案說明文件</h1>
+            <p class="text-lg text-gray-500 mt-2">一個功能強大且獨立的前後端資料庫查詢工具</p>
         </header>
 
-        <main>
-            <section id="overview">
-                <h2>專案總覽 (Project Overview)</h2>
-                <p>
-                    本專案是一個功能強大的網頁版 Oracle 資料庫查詢工具。它旨在提供一個現代化、高效率的介面，讓資料庫管理員 (DBA) 和開發者可以輕鬆地管理多個資料庫連線、儲存並重複使用常用的 SQL 語句，並以多種格式視覺化查詢結果。
-                </p>
-                <p>
-                    此工具採用前後端分離的架構，並透過 Docker 進行容器化部署，確保了環境的一致性與部署的便利性。
-                </p>
-                <p>
-                    <b>主要技術棧：</b>
-                    <span class="badge badge-primary">FastAPI</span>
-                    <span class="badge badge-info">Python</span>
-                    <span class="badge badge-secondary">Oracle Thick Mode</span>
-                    <span class="badge badge-success">SQLite</span>
-                    <span class="badge badge-primary">Docker</span>
-                    <span class="badge badge-info">HTML5</span>
-                    <span class="badge badge-secondary">JavaScript (Vanilla)</span>
-                </p>
-            </section>
+        <div class="content-section">
+            <h2>專案概覽</h2>
+            <p>
+                本專案是一個網頁版的 SQL 查詢工具，旨在提供一個方便、跨平台的介面，讓使用者能夠連線至多種資料庫（如 Oracle），並執行唯讀的 SQL 查詢。此工具將複雜的設定檔管理功能完全移至前端，利用瀏覽器的 `localStorage` 進行儲存，而後端則作為一個輕量、安全的代理，專注於執行資料庫查詢。
+            </p>
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-blue-800">前端技術</h4>
+                    <p class="text-blue-700 text-sm">HTML, CSS, Vanilla JavaScript, jQuery, DataTables.js</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-green-800">後端技術</h4>
+                    <p class="text-green-700 text-sm">Python, FastAPI, Uvicorn, oracledb</p>
+                </div>
+            </div>
+        </div>
 
-            <section id="architecture">
-                <h2>檔案架構 (File Structure)</h2>
-                <p>專案的根目錄包含以下關鍵檔案與資料夾：</p>
-                <pre>
-.
-├── Dockerfile
-├── docker-compose.yml
-├── main.py
-├── index.html
-├── README.md
-├── instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip  <-- (使用者需自行下載放置)
-└── data/
-    └── profiles.db                                       <-- (首次運行後自動生成)
-</pre>
-                <ul>
-                    <li><code>Dockerfile</code>: 定義了應用程式的 Docker 映像檔。包含 Python 環境、Oracle Instant Client 的安裝與設定，以及應用程式碼的複製。</li>
-                    <li><code>docker-compose.yml</code>: 用於定義和運行 Docker 容器服務，簡化了啟動流程並管理了資料持久化。</li>
-                    <li><code>main.py</code>: FastAPI 後端應用程式。處理所有 API 請求，包括 Oracle 連線、SQL 查詢以及對 SQLite 資料庫的 CRUD 操作。</li>
-                    <li><code>index.html</code>: 前端單頁應用程式 (SPA)。包含了所有的 UI 介面和 JavaScript 互動邏輯。</li>
-                    <li><code>README.md</code>: 專案的安裝與使用說明文件。</li>
-                    <li><code>instantclient...zip</code>: Oracle Instant Client 壓縮檔，是啟用 Thick Mode 的關鍵，需手動下載。</li>
-                    <li><code>data/profiles.db</code>: SQLite 資料庫檔案，用於永久儲存使用者建立的連線設定檔和 SQL 語句。</li>
-                </ul>
-            </section>
+        <div class="content-section">
+            <h2>前端畫面及功能特性</h2>
+            <p class="mb-6">前端介面由單一 `index.html` 構成，提供豐富的互動功能，所有設定皆儲存在使用者的本機瀏覽器中，無需後端資料庫。</p>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="feature-card">
+                    <h3>1. 連線設定檔管理 (localStorage)</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        <li><b>新增/修改</b>：整合的「儲存」按鈕，可透過輸入不同名稱來建立或覆蓋設定檔。</li>
+                        <li><b>刪除</b>：提供帶有確認提示的刪除功能。</li>
+                        <li><b>自動載入</b>：重新整理頁面後會自動載入上次使用的設定檔。</li>
+                        <li><b>多種資料庫</b>：支援 DB Type (Oracle, MS-SQL等) 及 Port 的設定。</li>
+                        <li><b>排序</b>：下拉選單中的設定檔會依字母順序排列。</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <h3>2. SQL 語句管理 (localStorage)</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        <li><b>與 Profile 關聯</b>：每個 SQL 都與一個連線設定檔綁定。</li>
+                        <li><b>新增/修改</b>：同樣使用整合的「儲存」按鈕。</li>
+                        <li><b>刪除</b>：提供帶有確認提示的刪除功能。</li>
+                        <li><b>排序</b>：下拉選單中的 SQL 會依字母順序排列。</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <h3>3. 查詢執行模式</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        <li><b>同頁查詢</b>：在當前頁面透過 AJAX 執行查詢並更新結果，適合快速驗證。</li>
+                        <li><b>換頁查詢</b>：在新請求中執行查詢，保留當前頁面狀態，方便使用瀏覽器的「上一頁/下一頁」來回顧多次查詢的歷史紀錄。</li>
+                        <li><b>安全傳遞</b>：換頁查詢時，連線參數透過 `sessionStorage` 傳遞，URL 中只保留無意義的 ID，提升安全性。</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <h3>4. 查詢結果呈現</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        <li><b>多種格式</b>：支援 Row Set, DataTables, HTML Table, JSON 四種格式切換。</li>
+                        <li><b>Row Set 循環切換</b>：在 Row Set 模式下，可循環切換「正常 → 顯示 ID → 轉置」三種狀態。</li>
+                        <li><b>DataTables 整合</b>：提供互動式的表格，支援排序與搜尋，並已修正預設排序問題。</li>
+                        <li><b>CSV 匯出</b>：可將當前查詢結果（包含轉置後）匯出為 CSV 檔案。</li>
+                    </ul>
+                </div>
+                 <div class="feature-card">
+                    <h3>5. 使用者體驗 (UX) 優化</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        <li><b>查詢耗時</b>：顯示每次查詢所需時間，並依秒數標示顏色。</li>
+                        <li><b>本機儲存用量</b>：即時顯示 `localStorage` 的使用量。</li>
+                        <li><b>清除/復原</b>：一鍵清除 SQL 輸入框，再按一次可復原回上次執行的 SQL。</li>
+                        <li><b>自動捲動</b>：查詢後自動捲動至結果區，方便查看。</li>
+                         <li><b>防止跳動</b>：結果區有最小高度，切換格式時畫面穩定。</li>
+                        <li><b>歷史快取</b>：使用瀏覽器上一頁/下一頁時，會從 `sessionStorage` 讀取快取結果，避免重複查詢。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
 
-            <section id="features">
-                <h2>工具特性 (Key Features)</h2>
+        <div class="content-section">
+            <h2>檔案結構</h2>
+            <pre><code>/project-root
+├── .gitignore          # Git 忽略清單
+├── Dockerfile          # 用於建立後端服務的 Docker 映像檔
+├── docker-compose.yml  # Docker Compose 設定檔，方便一鍵啟動
+├── index.html          # 前端應用程式主體 (SPA)
+├── main.py             # 後端 FastAPI 應用程式
+└── requirements.txt    # Python 依賴套件清單
+</code></pre>
+        </div>
 
-                <h3>1. 連線設定檔管理 (Connection Profile Management)</h3>
-                <ul>
-                    <li><b>CRUD 功能</b>: 提供完整的新增、讀取、修改、刪除 (CRUD) 功能來管理資料庫連線設定檔 (包含主機、SID、使用者、密碼)。</li>
-                    <li><b>快速切換</b>: 使用者可以透過下拉選單在已儲存的多個設定檔之間快速切換，無需重複輸入連線資訊。</li>
-                    <li><b>持久化儲存</b>: 所有設定檔都儲存在後端的 SQLite 資料庫中，即使關閉瀏覽器或重啟容器，資料也不會遺失。</li>
-                </ul>
+        <div class="content-section">
+            <h2>安裝與啟動 (使用 Docker)</h2>
+            <p>本專案建議使用 Docker 進行部署，可以免去在本機安裝 Python 或 Oracle Client 的複雜步驟。</p>
 
-                <h3>2. SQL 語句管理 (SQL Statement Management)</h3>
-                <ul>
-                    <li><b>與設定檔掛鉤</b>: 每一個資料庫連線設定檔都可以擁有自己的一組常用 SQL 語句，實現了分類管理。</li>
-                    <li><b>CRUD 功能</b>: 同樣提供完整的 CRUD 功能，方便使用者儲存、修改及刪除常用的查詢指令。</li>
-                    <li><b>提高效率</b>: 對於需要頻繁執行的監控或查詢腳本，此功能可以大幅減少重複輸入的時間。</li>
-                </ul>
+            <h3>事前準備</h3>
+            <ul class="list-decimal list-inside">
+                <li>安裝 <a href="https://git-scm.com/" target="_blank" class="text-blue-600 hover:underline">Git</a></li>
+                <li>安裝 <a href="https://www.docker.com/products/docker-desktop/" target="_blank" class="text-blue-600 hover:underline">Docker Desktop</a> (已包含 Docker Compose)</li>
+            </ul>
 
-                <h3>3. 查詢執行與控制 (Query Execution & Control)</h3>
-                <ul>
-                    <li><b>即時連線測試</b>: 在執行查詢前，可以先測試目前的連線資訊是否正確，提供即時反饋。</li>
-                    <li><b>最大行數限制 (Max Rows)</b>: 使用者可以自訂單次查詢回傳的最大資料筆數 (預設 200)，有效防止因查詢結果過大而導致瀏覽器卡頓或崩潰。</li>
-                </ul>
+            <h3>啟動步驟</h3>
+            <ol class="list-decimal list-inside mt-4 space-y-4">
+                <li>
+                    <p>打開您的終端機 (Terminal 或命令提示字元)，使用 git 將專案複製到您的電腦：</p>
+                    <pre><code>git clone [您的專案 Git Repository URL]
+cd [專案目錄]</code></pre>
+                </li>
+                <li>
+                    <p>在專案的根目錄下，執行 Docker Compose 指令來建立並啟動服務。`--build` 參數會確保 Docker 使用最新的 `Dockerfile` 重新建立映像檔。</p>
+                    <pre><code>docker-compose up --build -d</code></pre>
+                    <p class="text-sm text-gray-500 mt-2">(-d 參數會讓服務在背景執行)</p>
+                </li>
+                 <li>
+                    <p>啟動成功後，打開您的瀏覽器，前往以下網址即可開始使用：</p>
+                    <pre><code><a href="http://localhost:8000" target="_blank" class="text-yellow-300 hover:underline">http://localhost:8000</a></code></pre>
+                </li>
+                <li>
+                    <p>若要停止服務，請在同一個專案目錄下執行：</p>
+                    <pre><code>docker-compose down</code></pre>
+                </li>
+            </ol>
+        </div>
 
-                <h3>4. 多功能結果顯示 (Versatile Result Display)</h3>
-                <p>此工具最核心的特色之一是強大的前端結果呈現能力。所有格式轉換均在前端完成，反應迅速，無需重新查詢資料庫。</p>
-                <ul>
-                    <li><b>Row Set</b>: 純文字、等寬字體的表格格式，適合快速預覽與複製。支援<b>行列互換 (Transpose)</b> 切換，方便查看欄位較多的資料。</li>
-                    <li><b>DataTables</b>: 整合了強大的 <a href="https://datatables.net/" target="_blank">DataTables.net</a> 套件，提供具備排序、搜尋、分頁功能的互動式表格。</li>
-                    <li><b>HTML Table</b>: 簡潔美觀的標準 HTML 表格。支援<b>合併儲存格 (Row Span)</b> 切換，能將左側前三欄內容相同的儲存格自動合併，提升可讀性。</li>
-                    <li><b>JSON</b>: 將查詢結果以格式化的 JSON 格式顯示，方便開發人員進行 API 介接或資料分析。</li>
-                    <li><b>Export CSV</b>: 一鍵將目前的查詢結果下載為 CSV 檔案，方便在 Excel 或其他工具中進行後續處理。</li>
-                </ul>
-                 <h3>5. 容器化部署 (Containerized Deployment)</h3>
-                <ul>
-                    <li><b>環境一致性</b>: 透過 Docker 將應用程式與其所有依賴（包括 Oracle Client）打包在一起，確保在任何支援 Docker 的環境下都能有一致的運行表現。</li>
-                    <li><b>簡化設定</b>: 大幅簡化了 Oracle Thick Mode 需要的複雜環境設定，使用者只需下載指定檔案並執行一條指令即可啟動。</li>
-                </ul>
-            </section>
-        </main>
     </div>
 </body>
 </html>
