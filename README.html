@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB Web Query Tool - 專案說明文件</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.8;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
+        .container {
+            max-width: 960px;
+            margin: 2rem auto;
+            background: #ffffff;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        }
+        header {
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        h1 {
+            color: #0056b3;
+            font-size: 2.5rem;
+            margin: 0;
+        }
+        h2 {
+            color: #0056b3;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 0.5rem;
+            margin-top: 2.5rem;
+            font-size: 1.8rem;
+        }
+        h3 {
+            color: #17a2b8;
+            font-size: 1.4rem;
+            margin-top: 2rem;
+        }
+        p {
+            font-size: 1.1rem;
+            color: #495057;
+        }
+        code {
+            background-color: #e9ecef;
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 90%;
+            border-radius: 3px;
+            font-family: "Courier New", Courier, monospace;
+        }
+        pre {
+            background-color: #212529;
+            color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.3em 0.6em;
+            font-size: 85%;
+            font-weight: 700;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 0.25rem;
+        }
+        .badge-primary { background-color: #007bff; }
+        .badge-secondary { background-color: #6c757d; }
+        .badge-success { background-color: #28a745; }
+        .badge-info { background-color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>DB Web Query Tool 專案說明文件</h1>
+        </header>
+
+        <main>
+            <section id="overview">
+                <h2>專案總覽 (Project Overview)</h2>
+                <p>
+                    本專案是一個功能強大的網頁版 Oracle 資料庫查詢工具。它旨在提供一個現代化、高效率的介面，讓資料庫管理員 (DBA) 和開發者可以輕鬆地管理多個資料庫連線、儲存並重複使用常用的 SQL 語句，並以多種格式視覺化查詢結果。
+                </p>
+                <p>
+                    此工具採用前後端分離的架構，並透過 Docker 進行容器化部署，確保了環境的一致性與部署的便利性。
+                </p>
+                <p>
+                    <b>主要技術棧：</b>
+                    <span class="badge badge-primary">FastAPI</span>
+                    <span class="badge badge-info">Python</span>
+                    <span class="badge badge-secondary">Oracle Thick Mode</span>
+                    <span class="badge badge-success">SQLite</span>
+                    <span class="badge badge-primary">Docker</span>
+                    <span class="badge badge-info">HTML5</span>
+                    <span class="badge badge-secondary">JavaScript (Vanilla)</span>
+                </p>
+            </section>
+
+            <section id="architecture">
+                <h2>檔案架構 (File Structure)</h2>
+                <p>專案的根目錄包含以下關鍵檔案與資料夾：</p>
+                <pre>
+.
+├── Dockerfile
+├── docker-compose.yml
+├── main.py
+├── index.html
+├── README.md
+├── instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip  <-- (使用者需自行下載放置)
+└── data/
+    └── profiles.db                                       <-- (首次運行後自動生成)
+</pre>
+                <ul>
+                    <li><code>Dockerfile</code>: 定義了應用程式的 Docker 映像檔。包含 Python 環境、Oracle Instant Client 的安裝與設定，以及應用程式碼的複製。</li>
+                    <li><code>docker-compose.yml</code>: 用於定義和運行 Docker 容器服務，簡化了啟動流程並管理了資料持久化。</li>
+                    <li><code>main.py</code>: FastAPI 後端應用程式。處理所有 API 請求，包括 Oracle 連線、SQL 查詢以及對 SQLite 資料庫的 CRUD 操作。</li>
+                    <li><code>index.html</code>: 前端單頁應用程式 (SPA)。包含了所有的 UI 介面和 JavaScript 互動邏輯。</li>
+                    <li><code>README.md</code>: 專案的安裝與使用說明文件。</li>
+                    <li><code>instantclient...zip</code>: Oracle Instant Client 壓縮檔，是啟用 Thick Mode 的關鍵，需手動下載。</li>
+                    <li><code>data/profiles.db</code>: SQLite 資料庫檔案，用於永久儲存使用者建立的連線設定檔和 SQL 語句。</li>
+                </ul>
+            </section>
+
+            <section id="features">
+                <h2>工具特性 (Key Features)</h2>
+
+                <h3>1. 連線設定檔管理 (Connection Profile Management)</h3>
+                <ul>
+                    <li><b>CRUD 功能</b>: 提供完整的新增、讀取、修改、刪除 (CRUD) 功能來管理資料庫連線設定檔 (包含主機、SID、使用者、密碼)。</li>
+                    <li><b>快速切換</b>: 使用者可以透過下拉選單在已儲存的多個設定檔之間快速切換，無需重複輸入連線資訊。</li>
+                    <li><b>持久化儲存</b>: 所有設定檔都儲存在後端的 SQLite 資料庫中，即使關閉瀏覽器或重啟容器，資料也不會遺失。</li>
+                </ul>
+
+                <h3>2. SQL 語句管理 (SQL Statement Management)</h3>
+                <ul>
+                    <li><b>與設定檔掛鉤</b>: 每一個資料庫連線設定檔都可以擁有自己的一組常用 SQL 語句，實現了分類管理。</li>
+                    <li><b>CRUD 功能</b>: 同樣提供完整的 CRUD 功能，方便使用者儲存、修改及刪除常用的查詢指令。</li>
+                    <li><b>提高效率</b>: 對於需要頻繁執行的監控或查詢腳本，此功能可以大幅減少重複輸入的時間。</li>
+                </ul>
+
+                <h3>3. 查詢執行與控制 (Query Execution & Control)</h3>
+                <ul>
+                    <li><b>即時連線測試</b>: 在執行查詢前，可以先測試目前的連線資訊是否正確，提供即時反饋。</li>
+                    <li><b>最大行數限制 (Max Rows)</b>: 使用者可以自訂單次查詢回傳的最大資料筆數 (預設 200)，有效防止因查詢結果過大而導致瀏覽器卡頓或崩潰。</li>
+                </ul>
+
+                <h3>4. 多功能結果顯示 (Versatile Result Display)</h3>
+                <p>此工具最核心的特色之一是強大的前端結果呈現能力。所有格式轉換均在前端完成，反應迅速，無需重新查詢資料庫。</p>
+                <ul>
+                    <li><b>Row Set</b>: 純文字、等寬字體的表格格式，適合快速預覽與複製。支援<b>行列互換 (Transpose)</b> 切換，方便查看欄位較多的資料。</li>
+                    <li><b>DataTables</b>: 整合了強大的 <a href="https://datatables.net/" target="_blank">DataTables.net</a> 套件，提供具備排序、搜尋、分頁功能的互動式表格。</li>
+                    <li><b>HTML Table</b>: 簡潔美觀的標準 HTML 表格。支援<b>合併儲存格 (Row Span)</b> 切換，能將左側前三欄內容相同的儲存格自動合併，提升可讀性。</li>
+                    <li><b>JSON</b>: 將查詢結果以格式化的 JSON 格式顯示，方便開發人員進行 API 介接或資料分析。</li>
+                    <li><b>Export CSV</b>: 一鍵將目前的查詢結果下載為 CSV 檔案，方便在 Excel 或其他工具中進行後續處理。</li>
+                </ul>
+                 <h3>5. 容器化部署 (Containerized Deployment)</h3>
+                <ul>
+                    <li><b>環境一致性</b>: 透過 Docker 將應用程式與其所有依賴（包括 Oracle Client）打包在一起，確保在任何支援 Docker 的環境下都能有一致的運行表現。</li>
+                    <li><b>簡化設定</b>: 大幅簡化了 Oracle Thick Mode 需要的複雜環境設定，使用者只需下載指定檔案並執行一條指令即可啟動。</li>
+                </ul>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
+
