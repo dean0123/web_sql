@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DB Web Query Tool 查詢工具</title>
+    <!-- DataTables CSS -->
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 2rem; background-color: #f8f9fa; color: #212529; display: flex; justify-content: center; }
@@ -127,6 +128,7 @@
     <div id="result-container" class="result-container"></div>
 </div>
 
+<!-- jQuery and DataTables JS -->
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script>
@@ -136,8 +138,7 @@
     const STORAGE_KEYS = {
         PROFILES: 'profiles',
         SQLS: 'sqls',
-        LAST_PROFILE_ID: 'lastProfileId',
-        VIEW_FORMAT_STATE: 'viewFormatState' // <<< 修改點 1
+        LAST_PROFILE_ID: 'lastProfileId'
     };
     const ROW_SPAN_COLUMN_COUNT = 3;
     const LOCAL_STORAGE_QUOTA_MB = 5;
@@ -270,10 +271,9 @@
             execCredentials = { ...queryData };
             sessionStorage.setItem(window.location.search, JSON.stringify(currentQueryResult));
 
-            // 註解以下三行，因為格式狀態會在 initializeApp 時從 localStorage 載入
-            // viewStates.rowset.mode = 'normal';
-            // viewStates.isRowSpan = false;
-            // activeFormat = 'rowset';
+            viewStates.rowset.mode = 'normal';
+            viewStates.isRowSpan = false;
+            activeFormat = 'rowset';
             renderResult();
             elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
         } catch (error) {
@@ -649,12 +649,6 @@
             
             activeFormat = newFormat;
             renderResult();
-
-            // <<< 修改點 2 >>>
-            StorageService.set(STORAGE_KEYS.VIEW_FORMAT_STATE, {
-                activeFormat: activeFormat,
-                viewStates: viewStates
-            });
         });
     }
 
@@ -664,13 +658,6 @@
     const isResultPage = !!queryId;
 
     function initializeApp() {
-        // <<< 修改點 3 (Part 1) >>>
-        const savedFormatState = StorageService.get(STORAGE_KEYS.VIEW_FORMAT_STATE, null);
-        if (savedFormatState) {
-            activeFormat = savedFormatState.activeFormat || 'rowset';
-            Object.assign(viewStates, savedFormatState.viewStates);
-        }
-
         if (isResultPage) {
             document.title = "查詢結果";
             
@@ -717,7 +704,6 @@
         }
         setupEventListeners();
         updateLocalStorageUsage();
-        updateActiveFormatButton(); // <<< 修改點 3 (Part 2) >>>
     }
 
     initializeApp();
