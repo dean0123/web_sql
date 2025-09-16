@@ -75,7 +75,7 @@
 
 2.  **建立並啟動服務**
     在專案的根目錄下，執行 Docker Compose 指令。`--build` 參數會確保 Docker 使用最新的 `Dockerfile` 重新建立映像檔。  
-   如果是MAC 請複製 Dockerfile_MAC 到 Dockerfile, 然後再Build image, 差異只有 x64 與 arm64 Oracle Thick Client 的差別而已. 如果是 PC X86 處理器 就使用預設 Dockerfile ( Dockerfile_x64) 的檔案。
+   如果是MAC 請複製 `Dockerfile_MAC` 到 `Dockerfile`, 然後再Build image, 差異只有 x64 與 arm64 Oracle Thick Client 的差別而已. 如果是 PC X86 處理器 就使用預設 `Dockerfile` ( `Dockerfile_x64` ) 的檔案。
 
     ```bash
     docker-compose up --build -d
