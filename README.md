@@ -46,14 +46,15 @@
 ---
 
 ## 檔案結構
-/project-root
-├── .gitignore          # Git 忽略清單
-├── Dockerfile          # 用於建立後端服務的 Docker 映像檔
-├── docker-compose.yml  # Docker Compose 設定檔，方便一鍵啟動
-├── index.html          # 前端應用程式主體 (SPA)
-├── main.py             # 後端 FastAPI 應用程式
-└── requirements.txt    # Python 依賴套件清單
-
+```
+/project-root  
+├── .gitignore          # Git 忽略清單  
+├── Dockerfile          # 用於建立後端服務的 Docker 映像檔  
+├── docker-compose.yml  # Docker Compose 設定檔，方便一鍵啟動  
+├── index.html          # 前端應用程式主體 (SPA)  
+├── main.py             # 後端 FastAPI 應用程式  
+└── requirements.txt    # Python 依賴套件清單  
+```
 
 ---
 
@@ -74,8 +75,8 @@
 
 2.  **建立並啟動服務**
     在專案的根目錄下，執行 Docker Compose 指令。`--build` 參數會確保 Docker 使用最新的 `Dockerfile` 重新建立映像檔。  
-    如果是MAC 請複製 Dockerfile_MAC 到 Dockerfile, 然後再Build image, 差異只有 x64 與 arm64 Oracle Thick Client 的差別而已. 如果是 PC X86 處理器 就使用預設 Dockerfile ( Dockerfile_x64) 的檔案。
- 
+   如果是MAC 請複製 Dockerfile_MAC 到 Dockerfile, 然後再Build image, 差異只有 x64 與 arm64 Oracle Thick Client 的差別而已. 如果是 PC X86 處理器 就使用預設 Dockerfile ( Dockerfile_x64) 的檔案。
+
     ```bash
     docker-compose up --build -d
     ```

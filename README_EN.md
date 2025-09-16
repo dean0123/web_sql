@@ -53,15 +53,15 @@ This tool adopts a front-end/back-end separated architecture:
 ---
 
 ## File Structure
-
-/project-root
-├── .gitignore          # Git ignore list
-├── Dockerfile          # Dockerfile for building the backend service image
-├── docker-compose.yml  # Docker Compose configuration for easy startup
-├── index.html          # The frontend Single Page Application (SPA)
-├── main.py             # The backend FastAPI application
-└── requirements.txt    # Python dependency list
-
+```
+/project-root  
+├── .gitignore          # Git ignore list  
+├── Dockerfile          # Dockerfile for building the backend service image  
+├── docker-compose.yml  # Docker Compose configuration for easy startup  
+├── index.html          # The frontend Single Page Application (SPA)  
+├── main.py             # The backend FastAPI application  
+└── requirements.txt    # Python dependency list  
+```
 ---
 
 ## Installation and Startup (Docker Recommended)
