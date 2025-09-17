@@ -99,7 +99,6 @@
         <h3>
             <span>2. 執行 SQL Statement</span>
             <div class="form-row">
-                <span id="session-usage-display" style="margin-right: 1rem; font-size: 0.8rem; color: #6c757d;"></span>
                 <span id="storage-usage-display" style="margin-right: 1rem; font-size: 0.8rem; color: #6c757d;"></span>
                 <select id="sql-select" style="width: 200px;"><option value="">-- 新增 SQL --</option></select>
                 <button id="save-sql-btn" class="btn-sm btn-success">儲存</button>
@@ -131,7 +130,7 @@
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script>
-   (function() {
+(function() {
     'use strict';
 
     const STORAGE_KEYS = {
@@ -141,9 +140,7 @@
         VIEW_FORMAT_STATE: 'viewFormatState' // <<< 修改點 1
     };
     const ROW_SPAN_COLUMN_COUNT = 3;
-
-    let totalLocalStorage = localStorage.getItem("totalLocalStorageSizeM")
-    let totalSessionStorage = sessionStorage.getItem("totalSessionStorageSizeM")
+    const LOCAL_STORAGE_QUOTA_MB = 5;
 
     let profiles = [];
     let sqls = [];
@@ -182,7 +179,6 @@
         sqlSection: document.getElementById('sql-section'),
         responseTimeDisplay: document.getElementById('response-time-display'),
         storageUsageDisplay: document.getElementById('storage-usage-display'),
-        sessionUsageDisplay: document.getElementById('session-usage-display'),
     };
 
     const StorageService = {
@@ -193,7 +189,7 @@
         },
         set: (key, value) => {
             localStorage.setItem(key, JSON.stringify(value));
-            //updateLocalStorageUsage();
+            updateLocalStorageUsage();
         }
     };
     
@@ -239,23 +235,6 @@
         profileId: elements.profileSelect.value
     });
 
-    // Dean added : 計算 LocalStorage SessionStorage 總量大小 MB
-    const getStorageSize = ( storage ) => {
-        const dummy100K = "1".repeat(102400);
-        let totalSize =0
-        for (let i = 0, dummy=dummy100K ; i < 200 ; i++) {
-            try {
-                storage.setItem("DUMMY", dummy);
-                dummy += dummy100K
-            } catch(e) {
-                totalSize = (JSON.stringify(storage).length/(1024*1024)).toFixed(1);
-                storage.removeItem("DUMMY")
-                break;
-            }
-        }
-        return totalSize;
-    }
-
     const updateLocalStorageUsage = () => {
         let totalSize = 0;
         for (let i = 0; i < localStorage.length; i++) {
@@ -263,16 +242,8 @@
             const value = localStorage.getItem(key);
             totalSize += (key.length + (value || '').length) * 2;
         }
-
-        // Dean Added : 計算 LocalStorage and SessionStorage 用量/總量
-        let usedLS=(JSON.stringify(localStorage).length/(1024*1024)).toFixed(2);
-        let usedSS=(JSON.stringify(sessionStorage).length/(1024*1024)).toFixed(2);
-
-        if (usedSS > totalSessionStorage*0.6) elements.sessionUsageDisplay.style.color='red';
-        if (usedLS > totalLocalStorage*0.6) elements.localUsageDisplay.style.color='red';
-        elements.sessionUsageDisplay.textContent = ` Session Storage : ${usedSS} / ${totalSessionStorage} MB`;
-        elements.storageUsageDisplay.textContent = `   Local Storage : ${usedLS} / ${totalLocalStorage} MB `;
-
+        const usageInMB = (totalSize / (1024 * 1024)).toFixed(1);
+        elements.storageUsageDisplay.textContent = `本機儲存: ${usageInMB} / ${LOCAL_STORAGE_QUOTA_MB.toFixed(1)} MB`;
     };
     
     const runQuery = async (queryData) => {
@@ -284,15 +255,16 @@
         elements.responseTimeDisplay.className = '';
         
         const startTime = performance.now();
-        
 
         try {
             currentQueryResult = await apiCall('/execute-query', 'POST', queryData);
             
             const endTime = performance.now();
             const durationInSeconds = ((endTime - startTime) / 1000).toFixed(2);
-            // Dean added : 加回傳row 比數, Elapsed time in seconds 耗時秒數 
+            // Dean added : 加回傳 比數, 耗時秒數 
             elements.responseTimeDisplay.textContent = `耗時 ${durationInSeconds}s /  回傳 ${currentQueryResult.data.length} rows`; 
+            // Dean added : 計算顯示 Local Storage 用量
+updateLocalStorageUsage();
 
             if (durationInSeconds > 2) {
                 elements.responseTimeDisplay.className = 'error';
@@ -309,29 +281,14 @@
             // viewStates.isRowSpan = false;
             // activeFormat = 'rowset';
             renderResult();
-
             // Dean added : 捲動到資料 Step 2 到資料欄位, 顯示格式按鈕
             elements.requestQueryBtn.scrollIntoView({ behavior: 'smooth' });
             //elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
-
-            // Dean added : 計算顯示 Local Storage 用量
-            updateLocalStorageUsage();
-
         } catch (error) {
-            let extraMessage='';
-            if (error.name === 'QuotaExceededError' ) {
-                sessionStorage.removeItem(window.location.search);
-                extraMessage="<br><br> ------ Sesssion Storage 會話儲存已滿, 請另外開 分頁查詢 ------";
-                //sessionStorage.clear();
-            }
-            
-            //elements.resultContainer.innerHTML = `<div class="result-box error">查詢失敗:${error.name} / ${error.message} </div>`;
-            elements.resultContainer.innerHTML = `<div class="result-box error">查詢失敗:${error.name} / ${error.message} ${extraMessage}</div>`;
-
+            elements.resultContainer.innerHTML = `<div class="result-box error">查詢失敗: ${error.message}</div>`;
             elements.responseTimeDisplay.textContent = '查詢失敗';
             elements.responseTimeDisplay.className = 'error';
             currentQueryResult = null;
-            
         }
     };
 
@@ -715,17 +672,6 @@
     const isResultPage = !!queryId;
 
     function initializeApp() {
-
-    const navigationEntries = window.performance.getEntriesByType("navigation");
-    if (navigationEntries[0].type === "back_forward") {
-        // alert("這是透過歷史紀錄回退的");
-        // return;
-    } else if (navigationEntries.length > 0 && navigationEntries[0].type === "reload") {
-        //alert("這是重新載入的");
-    } else {
-        //alert("這是第一次導航或其他類型");
-    }
-        // if ( navigationEntries[0].type === "back_forward") return;
         // <<< 修改點 3 (Part 1) >>>
         const savedFormatState = StorageService.get(STORAGE_KEYS.VIEW_FORMAT_STATE, null);
         if (savedFormatState) {
@@ -733,23 +679,10 @@
             Object.assign(viewStates, savedFormatState.viewStates);
         }
 
-        // Dean Added : 計算 LocalStorage SessionSrorage Size
-        if ( !totalLocalStorage ) {
-            totalLocalStorage=getStorageSize( localStorage )
-            // alert(`Local Storage 本地儲存大小 : ${totalLocalStorage} MB`);
-            localStorage.setItem("totalLocalStorageSizeM", totalLocalStorage)
-        }
-        if ( !totalSessionStorage ) {
-            totalSessionStorage=getStorageSize( sessionStorage )
-            // alert(`Session Storage 會話儲存大小 : ${totalSessionStorage} MB`);
-            sessionStorage.setItem("totalSessionStorageSizeM", totalSessionStorage)
-        }
-
-
-        const queryDataJSON = sessionStorage.getItem(queryId);
-        if (isResultPage && queryDataJSON ) {
+        if (isResultPage) {
             document.title = "查詢結果";
             
+            const queryDataJSON = sessionStorage.getItem(queryId);
             if (!queryDataJSON) {
                 elements.resultContainer.innerHTML = `<div class="result-box error">找不到查詢參數 (ID: ${queryId})，可能是分頁已過期。</div>`;
                 return;
@@ -764,17 +697,16 @@
             elements.password.value = queryData.pwd;
             elements.sqlStatement.value = queryData.sql;
 
-// execSqlStatement = queryData.sql;
-// runQuery(queryData);
-
             const cachedResultKey = window.location.search;
             const cachedResultJSON = sessionStorage.getItem(cachedResultKey);
+            
             if (cachedResultJSON) {
                 currentQueryResult = JSON.parse(cachedResultJSON);
                 execSqlStatement = queryData.sql;
                 execCredentials = { ...queryData };
                 elements.responseTimeDisplay.textContent = "(來自快取)";
                 renderResult();
+           //     elements.sqlSection.scrollIntoView({ behavior: 'smooth' });
             } else {
                 runQuery(queryData);
             }
