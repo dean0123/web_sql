@@ -257,12 +257,6 @@
     }
 
     const updateLocalStorageUsage = () => {
-        let totalSize = 0;
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            const value = localStorage.getItem(key);
-            totalSize += (key.length + (value || '').length) * 2;
-        }
 
         // Dean Added : 計算 LocalStorage and SessionStorage 用量/總量
         let usedLS=(JSON.stringify(localStorage).length/(1024*1024)).toFixed(2);
@@ -717,15 +711,14 @@
     function initializeApp() {
 
     const navigationEntries = window.performance.getEntriesByType("navigation");
-    if (navigationEntries[0].type === "back_forward") {
-        // alert("這是透過歷史紀錄回退的");
-        // return;
-    } else if (navigationEntries.length > 0 && navigationEntries[0].type === "reload") {
-        //alert("這是重新載入的");
-    } else {
-        //alert("這是第一次導航或其他類型");
-    }
-        // if ( navigationEntries[0].type === "back_forward") return;
+        if (navigationEntries[0].type === "back_forward") {
+            // alert("這是透過歷史紀錄回退的,想要避免Reload Query");
+            // return;
+        } else if (navigationEntries.length > 0 && navigationEntries[0].type === "reload") {
+            //alert("這是重新載入的");
+        } else {
+            //alert("這是第一次導航或其他類型");
+        }
         // <<< 修改點 3 (Part 1) >>>
         const savedFormatState = StorageService.get(STORAGE_KEYS.VIEW_FORMAT_STATE, null);
         if (savedFormatState) {
@@ -764,8 +757,9 @@
             elements.password.value = queryData.pwd;
             elements.sqlStatement.value = queryData.sql;
 
+// ----> 想要 1:不使用Session Storage, 2:回前頁也不會重新Query, 但是似乎還沒找到方法.
 // execSqlStatement = queryData.sql;
-// runQuery(queryData);
+// runQuery(queryData)
 
             const cachedResultKey = window.location.search;
             const cachedResultJSON = sessionStorage.getItem(cachedResultKey);
