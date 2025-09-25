@@ -81,7 +81,7 @@ def get_db_engine(conn_details: DbConnectionBase):
             return oracledb.connect(user=conn_details.user, password=conn_details.password, dsn=dsn)
         except oracledb.Error as e:
             logging.error(f"Oracle connection failed: {e}")
-            raise HTTPException(status_code=400, detail=f"Oracle 連線失敗: {e}")
+            raise HTTPException(status_code=400, detail=f"Oracle 連線失敗: {e} \n檢查 Oracle Thick CLient 設定")
     
     # --- 未來擴充點 ---
     elif conn_details.db_type == DbType.MSSQL:
