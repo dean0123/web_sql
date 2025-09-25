@@ -540,15 +540,16 @@
     };
 
     function setupEventListeners() {
-        elements.profileSelect.addEventListener('change', handleProfileChange);
         elements.sqlSelect.addEventListener('change', () => {
             const sqlId = elements.sqlSelect.value;
             const sql = sqls.find(s => s.id == sqlId);
             elements.sqlStatement.value = sql ? sql.statement : '';
 
-            // Dean added: 選完sql後, 跳到 查詢按鈕, 可直接按鍵盤空白鍵查詢
-            elements.requestQueryBtn.focus();
+            // Dean added: 選完sql後, 跳到 SQL 輸入格, 可直接按Tab, Space 鍵盤空白鍵查詢
+            // elements.requestQueryBtn.focus();
+            elements.sqlStatement.focus();
         });
+        elements.profileSelect.addEventListener('change', handleProfileChange);
         elements.dbType.addEventListener('change', setDefaultPort);
         elements.testConnBtn.addEventListener('click', async () => {
             try {
