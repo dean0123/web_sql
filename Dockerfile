@@ -11,15 +11,19 @@ ENV ORACLE_CLIENT_URL="https://download.oracle.com/otn_software/linux/instantcli
 # 步驟 3: 安裝作業系統層級的必要套件
 # unzip: 用於解壓縮 instant client
 # libaio1: Oracle Thick Mode 必要的相依性函式庫
+ENV HTTP_PROXY="http://10.1.229.229:15629/"
+ENV HTTPS_PROXY="http://10.1.229.229:15629/"
+RUN echo 'Acquire::http::Proxy "http://10.1.229.229:15629/";' > /etc/apt/apt.conf
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \ 
+    curl wget \ 
     unzip \ 
     libaio1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 步驟 4: 複製並解壓縮 Oracle Instant Client
 # 下載 instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip
-RUN wget ${ORACLE_CLIENT_URL} -O /tmp/instantclient.zip && unzip /tmp/instantclient.zip -d /opt/oracle/ && \
+RUN curl -k ${ORACLE_CLIENT_URL} -o /tmp/instantclient.zip && unzip /tmp/instantclient.zip -d /opt/oracle/ && \
     rm /tmp/instantclient.zip
 
 # 步驟 5: 設定容器內的工作目錄
