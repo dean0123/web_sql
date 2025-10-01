@@ -7,8 +7,8 @@ FROM python:3.10-slim-bookworm
 ENV ORACLE_CLIENT_LIB=/opt/oracle/instantclient_19_28
 ENV LD_LIBRARY_PATH=$ORACLE_CLIENT_LIB
 # intel/amd下載x86,  mac/raspberry改下載arm64的client
-ENV ORACLE_CLIENT_URL="https://download.oracle.com/otn_software/linux/instantclient/1928000/instantclient-basic-linux.x64-19.28.0.0.0dbru.zip"
-#ENV ORACLE_CLIENT_URL="https://download.oracle.com/otn_software/linux/instantclient/1928000/instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip"
+#ENV ORACLE_CLIENT_URL="https://download.oracle.com/otn_software/linux/instantclient/1928000/instantclient-basic-linux.x64-19.28.0.0.0dbru.zip"
+ENV ORACLE_CLIENT_URL="https://download.oracle.com/otn_software/linux/instantclient/1928000/instantclient-basic-linux.arm64-19.28.0.0.0dbru.zip"
 
 # 設定 PROXY 給 apt, curl, wget 使用, 可設在.env 作為變數,mac/pc docker會用本機proxy可不用設
 ENV HTTP_PROXY="http://10.1.229.229:15629/"

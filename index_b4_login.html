@@ -128,32 +128,6 @@
     <div id="result-container" class="result-container"></div>
 </div>
 
-
-
-<script>
-  window.OIDC_CONFIG = {
-    issuer: 'http://localhost:8002?oidc_debug=alert',
-    clientId: 'demo-spa',
-    scope: 'openid profile email',
-    //auto: false   // 若想手動登入
-  };
-</script>
-<script src="http://localhost:8002/static/oidc.js?v=3"></script>
-
-  <script>
-   // alert('====== OIDC Check  ======');
-   
-    document.addEventListener('oidc:ready', (e)=> console.log('user:', e.detail));
-    //alert('====== OIDC Check FInished ======');
-
-    if (OIDC.isAuthenticated()) { /* ... */ 
-       alert('====== Login OK  ======');
-    }
-    else { /* ... */
-       alert('====== Login Failed ======');
-    }
-  </script>
-
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script>
