@@ -150,3 +150,11 @@ async def read_index():
     """
     return FileResponse('index.html')
 
+
+@app.get("/login", include_in_schema=False)
+async def login():
+    return FileResponse('login.html')
+
+@app.get("/login_auto", include_in_schema=False)
+async def login():
+    return FileResponse('login_auto.html')
