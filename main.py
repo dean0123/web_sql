@@ -1,4 +1,6 @@
 import oracledb
+#import pyodbc # <-- 新增 for SQL Server
+import pyodbc 
 import logging
 import os
 import re
@@ -60,7 +62,7 @@ def validate_read_only_sql(sql: str):
     for statement in statements:
         # 取得第一個詞並轉為大寫
         first_word = statement.split()[0].upper()
-        allowed_starters = ["SELECT", "WITH"]
+        allowed_starters = ["SELECT", "WITH","USE"]
         
         if first_word not in allowed_starters:
             raise HTTPException(
@@ -84,7 +86,25 @@ def get_db_engine(conn_details: DbConnectionBase):
             raise HTTPException(status_code=400, detail=f"Oracle 連線失敗: {e} \n檢查 Oracle Thick CLient 設定")
     
     # --- 未來擴充點 ---
+    # ====================== 【Add SQL Server 修改開始】 ======================
     elif conn_details.db_type == DbType.MSSQL:
+        try:
+            # {ODBC Driver 18 for SQL Server} 是我們將在 Dockerfile 中安裝的驅動程式名稱
+            driver = "{ODBC Driver 18 for SQL Server}"
+            server = f"{conn_details.hostname},{conn_details.port or 1433}"
+            # 對於 SQL Server，前端傳來的 'sid' 欄位對應的是 'DATABASE'
+            database = conn_details.sid
+            username = conn_details.user
+            password = conn_details.password
+            # 組合 pyodbc 連線字串
+            conn_str = f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password};Encrypt=yes;TrustServerCertificate=yes"
+            logging.info("Connecting to MS-SQL Server...")
+            return pyodbc.connect(conn_str)
+        except pyodbc.Error as e:
+            logging.error(f"MS-SQL Server connection failed: {e}")
+            # 回傳一個前端可以理解的詳細錯誤訊息
+            raise HTTPException(status_code=400, detail=f"MS-SQL Server 連線失敗: {e}")
+    # ====================== 【修改結束】 ======================
         raise HTTPException(status_code=501, detail="MS-SQL Server 連線功能尚未實作")
     elif conn_details.db_type == DbType.POSTGRES:
         raise HTTPException(status_code=501, detail="PostgreSQL 連線功能尚未實作")

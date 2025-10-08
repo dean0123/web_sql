@@ -441,8 +441,10 @@
             const transposed = getTransposedData(columns, data); 
             headers = transposed.headers; 
             tableData = transposed.bodyData;
-            // Dean added: 手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
+
+            // Dean added: 增加下一行，  手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
             updateActiveFormatButton();
+
         } else { 
             headers = columns; 
             tableData = data.map(row => columns.map(col => row[col])); 
@@ -674,7 +676,8 @@
             }
         });
         elements.formatControls.addEventListener('click', (e) => {
-            if (!e.target.matches('button') || !currentQueryResult) return;
+            //if (!e.target.matches('button') || !currentQueryResult) return;
+            if (!e.target.matches('button') ) return;
             const targetId = e.target.id;
             const newFormat = targetId.replace('format-', '');
 
@@ -694,6 +697,9 @@
             }
             
             activeFormat = newFormat;
+	    // ======== 藍色， 按鈕之後 換藍色, 可在 查詢前 先選格式，以免錯誤格式卡住 =======
+	    updateActiveFormatButton();
+
             renderResult();
 
             // <<< 修改點 2 >>>
@@ -750,11 +756,13 @@
             }
             const queryData = JSON.parse(queryDataJSON);
             
-            Object.keys(queryData).forEach(key => {
-                if (elements[key] && key !== 'sql') {
-                    elements[key].value = queryData[key];
-                }
-            });
+           // ================  改 換頁查詢後 保持 SQL Port ====================
+            elements.hostname.value = queryData.hostname;
+            elements.sid.value = queryData.sid;
+            elements.user.value = queryData.user;
+            elements.dbType.value = queryData.db_type;
+            elements.port.value = queryData.port;
+           // ================  改 換頁查詢後 保持 SQL Port ====================
             elements.password.value = queryData.pwd;
             elements.sqlStatement.value = queryData.sql;
 
@@ -797,4 +805,3 @@
 </script>
 </body>
 </html>
-

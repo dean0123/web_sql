@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl \ 
     unzip \ 
     libaio1 \
+    gnupg unixodbc-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 步驟 4: 複製並解壓縮 Oracle Instant Client
@@ -32,6 +33,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #      wget 有時無法用SSL/TLS, 使用curl 下載比較沒用問題.
 RUN curl -k ${ORACLE_CLIENT_URL} -o /tmp/instantclient.zip && unzip /tmp/instantclient.zip -d /opt/oracle/ && \
     rm /tmp/instantclient.zip
+
+
+
+
+# 步驟 4-1 : 新增 Microsoft GPG key 並設定 APT repository for MS ODBC Driver
+RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    && curl https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18
+
 
 # 步驟 5: 設定容器內的工作目錄
 WORKDIR /app
