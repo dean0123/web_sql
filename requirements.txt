@@ -3,3 +3,4 @@ uvicorn[standard]
 oracledb
 pydantic
 pyodbc
+psycopg2-binary

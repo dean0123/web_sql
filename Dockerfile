@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \ 
     libaio1 \
     gnupg unixodbc-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 步驟 4: 複製並解壓縮 Oracle Instant Client

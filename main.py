@@ -1,6 +1,7 @@
 import oracledb
 #import pyodbc # <-- 新增 for SQL Server
-import pyodbc 
+import pyodbc     
+import psycopg2 
 import logging
 import os
 import re
@@ -105,9 +106,32 @@ def get_db_engine(conn_details: DbConnectionBase):
             # 回傳一個前端可以理解的詳細錯誤訊息
             raise HTTPException(status_code=400, detail=f"MS-SQL Server 連線失敗: {e}")
     # ====================== 【修改結束】 ======================
-        raise HTTPException(status_code=501, detail="MS-SQL Server 連線功能尚未實作")
+
+
+
+        # ====================== 【修改開始】 ======================
     elif conn_details.db_type == DbType.POSTGRES:
-        raise HTTPException(status_code=501, detail="PostgreSQL 連線功能尚未實作")
+        try:
+            # 對於 PostgreSQL，'sid' 欄位對應的是 'dbname'
+            conn_str = (
+                f"dbname='{conn_details.sid}' "
+                f"user='{conn_details.user}' "
+                f"host='{conn_details.hostname}' "
+                f"password='{conn_details.password}' "
+                f"port={conn_details.port or 5432}"
+            )
+            logging.info("Connecting to PostgreSQL Server...")
+            return psycopg2.connect(conn_str)
+        except psycopg2.Error as e:
+            logging.error(f"PostgreSQL connection failed: {e}")
+            raise HTTPException(status_code=400, detail=f"PostgreSQL 連線失敗: {e}")
+    # ====================== 【修改結束】 ======================
+
+
+
+
+
+
     elif conn_details.db_type == DbType.SQLITE:
         raise HTTPException(status_code=501, detail="SQLite 連線功能尚未實作")
     else:
