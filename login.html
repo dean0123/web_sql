@@ -75,16 +75,36 @@
 
 
   <!-- 頂端右上角的登入/登出區 -->
-  <div id="authBar" style="position:fixed;top:10px;right:12px;font:14px/1.4 sans-serif;">
-    <img data-oidc-src="avatarDataURL" alt="avatar" width="64" height="64" style="border-radius:50%;display:none">
-    <strong data-oidc-text="displayName">-</strong>
-    <a id="oidcLoginLink" href="#">Login</a>
-  </div>
 
 
-  <!-- 將 issuer / clientId 直接用 URL 參數帶入；未帶 callback_uri 則預設回到當前頁 -->
-  <script src="http://10.1.230.13:8002/static/oidc.js?client_id=demo-spa&auto_login=0"></script>
+  <!-- ----------------------------------------------------------------------------------------
 
+   必要選項 預設值
+   client_id=   【預設demo_spa】client_id是要用auth server 應用APP的ID應該每個APP不同
+                 可另加service提供給APP註冊client_id取得token
+   auth_server=http://xxxx:800x 指定認證auth server, 目的全企業,全AP共用相同 auth service/IdP
+                【預設與script src= 引入 oidc.js 的 http server 路徑url相同,同源】
+                 測試時指定  auth_server=http://localhost:8002 
+	         實際佈署後  auth_server=http://10.1.230.13:8002 (TEST server)
+
+   callback_uri  登入後跳回的頁面URL，【預設為origin 返回原頁面】
+   auto_login=0  預設不會自動導向登入。設1就會先跳到登入畫面, 登入後才會跳回
+   login_ui=1 ： 預設會插入「UserName | Login/Logout」小區塊。 設0關閉, 自己處理登入登出的連結
+
+   ex:
+  <script src="http://localhost:8002/static/oidc.js?client_id=demo-spa&auto_login=0&auth_server=http://home20:8000"></script>
+
+
+  若要顯示或處理 User Info 可用如下方式
+  <p>姓名：<strong data-oidc-text="displayName">—</strong></p>
+  <p>Email：<span data-oidc-text="email">—</span></p>
+  <p>部門：<span data-oidc-text="department">—</span></p>
+  <p>電話：<span data-oidc-text="phone">—</span></p>
+  ---------------------------------------------------------------------------------------- -->
+
+  <script src="http://localhost:8002/static/oidc.js?client_id=demo-spa"></script>
+
+ <img data-oidc-avatar alt="User Avatar" width="96" height="96" style="display:none">
 
 
 

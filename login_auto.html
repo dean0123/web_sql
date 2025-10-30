@@ -72,18 +72,29 @@
 
 
 
+
+
   <!-- 頂端右上角的登入/登出區 -->
-  <div id="authBar" style="position:fixed;top:10px;right:12px;font:14px/1.4 sans-serif;">
-    <img data-oidc-src="avatarDataURL" alt="avatar" width="64" height="64" style="border-radius:50%;display:none">
-    <strong data-oidc-text="displayName">-</strong>
-    <a id="oidcLoginLink" href="#">Login</a>
-  </div>
 
 
-  <!-- 將 issuer / clientId 直接用 URL 參數帶入；未帶 callback_uri 則預設回到當前頁 -->
-  <script src="http://10.1.230.13:8002/static/oidc.js?client_id=demo-spa&auto_login=1"></script>
+  <!-- ----------------------------------------------------------------------------------------
 
+    必要選項
+    client_id=初期預設為 demo_spa 應該每個APP不同,可另加service提供給APP註冊client_id取得token
+    auth_server=http://xxxx:800x 指定認證auth server, 目的全企業,全AP共用相同 auth service
+           不指定會與  script src 引入 oidc.js 的 http server 路徑相同
+           測試時指定  auth_server=http://localhost:8002 
+	   實際佈署後  auth_server=http://10.1.230.13:8002 (TEST server)
 
+    callback_uri = auth 認證 登入後跳回的頁面，預設為origin 返回原頁面
+    auto_login=0 預設: 非必要登入/不管有沒有登入都會顯示原畫面
+    auto_login=1 必要登入  /若沒登入會先跳到登入畫面, 登入後才會跳回
+
+   ex:
+  <script src="http://localhost:8002/static/oidc.js?client_id=demo-spa&auto_login=0&auth_server=http://home20:8000"></script>
+  ---------------------------------------------------------------------------------------- -->
+
+  <script src="http://localhost:8002/static/oidc.js?client_id=demo-spa&auto_login=1"></script>
 
 
 
