@@ -13,9 +13,10 @@
 
 | 頁面 | URL | 說明 |
 |------|-----|------|
+| 📖 **完整文檔** | [`/README.html`](http://10.1.230.13:8000/README) | 說明文件 |
 | 🏠 **無登入頁面** | [`index.html`](http://10.1.230.13:8000/) | AD 帳號登入介面，支援記住密碼功能 |
-| 👤  **跨應用登入** | [`sql_tool.html`](http://10.1.230.13:8000/login) | 加一行 odbc.js 手動登入連結 |
-| ⚡  **跨應用強制登入** | [`sql_tool.html`](http://10.1.230.13:8000/login_auto) | 加一行 odbc.js 強制登入，顯示User |
+| 👤  **跨應用登入** | [`login.html`](http://10.1.230.13:8000/login) | 加一行 odbc.js 手動登入連結 |
+| ⚡  **跨應用強制登入** | [`login_auto.html`](http://10.1.230.13:8000/login_auto) | 加一行 odbc.js 強制登入，顯示User |
 
 
 
