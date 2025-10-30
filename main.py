@@ -202,3 +202,7 @@ async def login():
 @app.get("/login_auto", include_in_schema=False)
 async def login():
     return FileResponse('login_auto.html')
+
+@app.get("/README", include_in_schema=False)
+async def login():
+    return FileResponse('README.html')
