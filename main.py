@@ -200,9 +200,23 @@ async def login():
     return FileResponse('login.html')
 
 @app.get("/login_auto", include_in_schema=False)
-async def login():
+async def login_auto():
     return FileResponse('login_auto.html')
 
+@app.get("/query", include_in_schema=False)
+async def query():
+    """
+    提供简化版查询页面 query.html
+    """
+    return FileResponse('query.html')
+
+@app.get("/rsformat.js", include_in_schema=False)
+async def rsformat_js():
+    """
+    提供零依赖的结果集格式化库 rsformat.js
+    """
+    return FileResponse('rsformat.js', media_type='application/javascript')
+
 @app.get("/README", include_in_schema=False)
-async def login():
+async def readme():
     return FileResponse('README.html')

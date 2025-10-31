@@ -403,7 +403,7 @@
         updateActiveFormatButton();
     };
     
-    const getTransposedData = (columns, data) => { 
+    const getTransposedData = (columns, data) => {
         if (!columns || columns.length === 0 || !data || data.length === 0) {
             return { headers: [], bodyData: [] };
         }
@@ -413,6 +413,35 @@
             return [colName, ...data.map(originalRow => originalRow[colName] ?? '')];
         });
         return { headers: newHeaders, bodyData: newBodyData };
+    };
+
+    // 辅助函数：转义 HTML 特殊字符（防止 XSS 攻击）
+    const escapeHtml = (value) => {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    };
+
+    // 辅助函数：将换行符转换为 HTML <br> 标签（用于 HTML Table 和 DataTables）
+    // 处理所有可能的换行符格式：\r\n, \n, \r
+    const convertNewlineToBr = (value) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+
+        // 调试输出：如果字符串包含换行符，输出到控制台
+        if (str.includes('\n') || str.includes('\r')) {
+            console.log('发现换行符的原始数据:', JSON.stringify(str));
+            console.log('字符码:', str.split('').map(c => c.charCodeAt(0)).join(','));
+        }
+
+        // 先转义 HTML，然后替换所有类型的换行符
+        const escaped = escapeHtml(str);
+        // 先处理 \r\n (Windows)，再处理 \n (Unix) 和 \r (Mac)
+        return escaped.replace(/\r\n/g, '<br>').replace(/\n/g, '<br>').replace(/\r/g, '<br>');
     };
 
     const renderRowSet = () => { 
@@ -434,79 +463,121 @@
         elements.resultContainer.innerHTML = `<pre class="result-box rowset-view">${text}</pre>`; 
     };
 
-    const renderDataTables = () => { 
-        let { columns, data } = getProcessedData(); 
-        let headers, tableData; 
-        if (viewStates.rowset.mode === 'transposed') { 
-            const transposed = getTransposedData(columns, data); 
-            headers = transposed.headers; 
-            tableData = transposed.bodyData;
+    const renderDataTables = () => {
+        let { columns, data } = getProcessedData();
+        let headers, tableData;
+        if (viewStates.rowset.mode === 'transposed') {
+            const transposed = getTransposedData(columns, data);
+            headers = transposed.headers;
+            // 对转置后的数据应用换行符转换
+            tableData = transposed.bodyData.map(rowDataArray =>
+                rowDataArray.map(cellData => convertNewlineToBr(cellData))
+            );
 
             // Dean added: 增加下一行，  手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
             updateActiveFormatButton();
 
-        } else { 
-            headers = columns; 
-            tableData = data.map(row => columns.map(col => row[col])); 
-        } 
-        const tableId = `dt-${Date.now()}`; 
-        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"></table>`; 
-        $(`#${tableId}`).DataTable({ 
-            data: tableData, 
-            columns: headers.map(h => ({ title: h })),
-            destroy: true, 
-            lengthMenu: [50, 10, 25, 100, 200 ], 
-            scrollX: true, 
+        } else {
+            headers = columns;
+            // 对正常模式的数据应用换行符转换
+            tableData = data.map(row => columns.map(col => convertNewlineToBr(row[col])));
+        }
+        const tableId = `dt-${Date.now()}`;
+        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"></table>`;
+
+        // 调试：输出处理后的数据
+        if (tableData.length > 0 && tableData[0].length > 0) {
+            console.log('DataTables 第一个单元格数据:', tableData[0][0]);
+            console.log('是否包含<br>:', tableData[0][0].includes('<br>'));
+        }
+
+        $(`#${tableId}`).DataTable({
+            data: tableData,
+            columns: headers.map(h => ({
+                title: h,
+                // 使用 createdCell 回调直接设置 HTML 内容，避免被 DataTables 转义
+                createdCell: function(td, cellData, rowData, row, col) {
+                    // 调试：输出第一个单元格的处理
+                    if (row === 0 && col === 0) {
+                        console.log('createdCell 接收到的数据:', cellData);
+                        console.log('设置后的 td.innerHTML:', td.innerHTML);
+                    }
+                    $(td).html(cellData);
+                }
+            })),
+            destroy: true,
+            lengthMenu: [50, 10, 25, 100, 200 ],
+            scrollX: true,
             order: []
-        }); 
+        });
     };
 
-    const renderHtmlTable = () => { 
-        let { columns, data } = getProcessedData(); 
+    const renderHtmlTable = () => {
+        let { columns, data } = getProcessedData();
         let tableHtml;
-        if (viewStates.rowset.mode === 'transposed') { 
-            const transposed = getTransposedData(columns, data); 
-            const headers = transposed.headers; 
+        if (viewStates.rowset.mode === 'transposed') {
+            const transposed = getTransposedData(columns, data);
+            const headers = transposed.headers;
             const bodyData = transposed.bodyData;
-            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
+            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
             bodyData.forEach(rowDataArray => {
-                tableHtml += '<tr>' + rowDataArray.map(cellData => `<td>${cellData ?? ''}</td>`).join('') + '</tr>';
+                tableHtml += '<tr>' + rowDataArray.map(cellData => `<td>${convertNewlineToBr(cellData)}</td>`).join('') + '</tr>';
             });
             tableHtml += '</tbody></table>';
-        } else { 
-            const headers = columns; 
+        } else {
+            const headers = columns;
             const bodyRows = data;
-            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
-            if (viewStates.isRowSpan && bodyRows.length > 0) { 
-                let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null); 
-                for (let i = 0; i < bodyRows.length; i++) { 
-                    tableHtml += '<tr>'; 
-                    for (let j = 0; j < headers.length; j++) { 
-                        const col = headers[j]; 
-                        const isSpanCol = j < ROW_SPAN_COLUMN_COUNT; 
-                        if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) {} 
-                        else { 
-                            lastValues[j] = bodyRows[i][col]; 
-                            let span = 1; 
-                            if (isSpanCol) { 
-                                for (let k = i + 1; k < bodyRows.length; k++) { 
-                                    if (bodyRows[k][col] === bodyRows[i][col]) span++; 
-                                    else break; 
-                                } 
-                            } 
-                            tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${bodyRows[i][col] ?? ''}</td>`; 
-                        } 
-                    } 
-                    tableHtml += '</tr>'; 
-                } 
-            } else { 
-                bodyRows.forEach(row => { 
-                    tableHtml += '<tr>' + headers.map(col => `<td>${row[col] ?? ''}</td>`).join('') + '</tr>'; 
-                }); 
-            } 
+            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+            if (viewStates.isRowSpan && bodyRows.length > 0) {
+                let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null);
+                for (let i = 0; i < bodyRows.length; i++) {
+                    tableHtml += '<tr>';
+                    for (let j = 0; j < headers.length; j++) {
+                        const col = headers[j];
+                        const isSpanCol = j < ROW_SPAN_COLUMN_COUNT;
+                        if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) {}
+                        else {
+                            lastValues[j] = bodyRows[i][col];
+                            let span = 1;
+                            if (isSpanCol) {
+                                for (let k = i + 1; k < bodyRows.length; k++) {
+                                    if (bodyRows[k][col] === bodyRows[i][col]) span++;
+                                    else break;
+                                }
+                            }
+                            const cellContent = convertNewlineToBr(bodyRows[i][col]);
+                            // 调试：输出第一个单元格
+                            if (i === 0 && j === 0) {
+                                console.log('HTML Table 第一个单元格原始数据:', bodyRows[i][col]);
+                                console.log('HTML Table 转换后数据:', cellContent);
+                                console.log('是否包含<br>:', cellContent.includes('<br>'));
+                            }
+                            tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${cellContent}</td>`;
+                        }
+                    }
+                    tableHtml += '</tr>';
+                }
+            } else {
+                bodyRows.forEach((row, rowIndex) => {
+                    tableHtml += '<tr>' + headers.map((col, colIndex) => {
+                        const cellContent = convertNewlineToBr(row[col]);
+                        // 调试：输出第一个单元格
+                        if (rowIndex === 0 && colIndex === 0) {
+                            console.log('HTML Table 第一个单元格原始数据:', row[col]);
+                            console.log('HTML Table 转换后数据:', cellContent);
+                            console.log('是否包含<br>:', cellContent.includes('<br>'));
+                        }
+                        return `<td>${cellContent}</td>`;
+                    }).join('') + '</tr>';
+                });
+            }
             tableHtml += '</tbody></table>';
         }
-        elements.resultContainer.innerHTML = tableHtml; 
+
+        // 调试：输出生成的 HTML 片段（前500字符）
+        console.log('生成的 HTML (前500字符):', tableHtml.substring(0, 500));
+
+        elements.resultContainer.innerHTML = tableHtml;
     };
     
     const renderJson = () => { 

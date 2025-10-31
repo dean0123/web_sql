@@ -459,7 +459,7 @@
         updateActiveFormatButton();
     };
     
-    const getTransposedData = (columns, data) => { 
+    const getTransposedData = (columns, data) => {
         if (!columns || columns.length === 0 || !data || data.length === 0) {
             return { headers: [], bodyData: [] };
         }
@@ -469,6 +469,27 @@
             return [colName, ...data.map(originalRow => originalRow[colName] ?? '')];
         });
         return { headers: newHeaders, bodyData: newBodyData };
+    };
+
+    // 辅助函数：转义 HTML 特殊字符（防止 XSS 攻击）
+    const escapeHtml = (value) => {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    };
+
+    // 辅助函数：将换行符转换为 HTML <br> 标签（用于 HTML Table 和 DataTables）
+    // 处理所有可能的换行符格式：\r\n, \n, \r
+    const convertNewlineToBr = (value) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        const escaped = escapeHtml(str);
+        // 先处理 \r\n (Windows)，再处理 \n (Unix) 和 \r (Mac)
+        return escaped.replace(/\r\n/g, '<br>').replace(/\n/g, '<br>').replace(/\r/g, '<br>');
     };
 
     const renderRowSet = () => { 
@@ -490,79 +511,89 @@
         elements.resultContainer.innerHTML = `<pre class="result-box rowset-view">${text}</pre>`; 
     };
 
-    const renderDataTables = () => { 
-        let { columns, data } = getProcessedData(); 
-        let headers, tableData; 
-        if (viewStates.rowset.mode === 'transposed') { 
-            const transposed = getTransposedData(columns, data); 
-            headers = transposed.headers; 
-            tableData = transposed.bodyData;
+    const renderDataTables = () => {
+        let { columns, data } = getProcessedData();
+        let headers, tableData;
+        if (viewStates.rowset.mode === 'transposed') {
+            const transposed = getTransposedData(columns, data);
+            headers = transposed.headers;
+            // 对转置后的数据应用换行符转换
+            tableData = transposed.bodyData.map(rowDataArray =>
+                rowDataArray.map(cellData => convertNewlineToBr(cellData))
+            );
 
             // Dean added: 增加下一行，  手動修改datatalbe 按鈕在transpose 模式下無法顯示藍色的問題
             updateActiveFormatButton();
 
-        } else { 
-            headers = columns; 
-            tableData = data.map(row => columns.map(col => row[col])); 
-        } 
-        const tableId = `dt-${Date.now()}`; 
-        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"></table>`; 
-        $(`#${tableId}`).DataTable({ 
-            data: tableData, 
-            columns: headers.map(h => ({ title: h })),
-            destroy: true, 
-            lengthMenu: [50, 10, 25, 100, 200 ], 
-            scrollX: true, 
+        } else {
+            headers = columns;
+            // 对正常模式的数据应用换行符转换
+            tableData = data.map(row => columns.map(col => convertNewlineToBr(row[col])));
+        }
+        const tableId = `dt-${Date.now()}`;
+        elements.resultContainer.innerHTML = `<table id="${tableId}" class="display compact" style="width:100%"></table>`;
+        $(`#${tableId}`).DataTable({
+            data: tableData,
+            columns: headers.map(h => ({
+                title: h,
+                // 使用 createdCell 回调直接设置 HTML 内容，避免被 DataTables 转义
+                createdCell: function(td, cellData, rowData, row, col) {
+                    $(td).html(cellData);
+                }
+            })),
+            destroy: true,
+            lengthMenu: [50, 10, 25, 100, 200 ],
+            scrollX: true,
             order: []
-        }); 
+        });
     };
 
-    const renderHtmlTable = () => { 
-        let { columns, data } = getProcessedData(); 
+    const renderHtmlTable = () => {
+        let { columns, data } = getProcessedData();
         let tableHtml;
-        if (viewStates.rowset.mode === 'transposed') { 
-            const transposed = getTransposedData(columns, data); 
-            const headers = transposed.headers; 
+        if (viewStates.rowset.mode === 'transposed') {
+            const transposed = getTransposedData(columns, data);
+            const headers = transposed.headers;
             const bodyData = transposed.bodyData;
-            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
+            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
             bodyData.forEach(rowDataArray => {
-                tableHtml += '<tr>' + rowDataArray.map(cellData => `<td>${cellData ?? ''}</td>`).join('') + '</tr>';
+                tableHtml += '<tr>' + rowDataArray.map(cellData => `<td>${convertNewlineToBr(cellData)}</td>`).join('') + '</tr>';
             });
             tableHtml += '</tbody></table>';
-        } else { 
-            const headers = columns; 
+        } else {
+            const headers = columns;
             const bodyRows = data;
-            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'; 
-            if (viewStates.isRowSpan && bodyRows.length > 0) { 
-                let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null); 
-                for (let i = 0; i < bodyRows.length; i++) { 
-                    tableHtml += '<tr>'; 
-                    for (let j = 0; j < headers.length; j++) { 
-                        const col = headers[j]; 
-                        const isSpanCol = j < ROW_SPAN_COLUMN_COUNT; 
-                        if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) {} 
-                        else { 
-                            lastValues[j] = bodyRows[i][col]; 
-                            let span = 1; 
-                            if (isSpanCol) { 
-                                for (let k = i + 1; k < bodyRows.length; k++) { 
-                                    if (bodyRows[k][col] === bodyRows[i][col]) span++; 
-                                    else break; 
-                                } 
-                            } 
-                            tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${bodyRows[i][col] ?? ''}</td>`; 
-                        } 
-                    } 
-                    tableHtml += '</tr>'; 
-                } 
-            } else { 
-                bodyRows.forEach(row => { 
-                    tableHtml += '<tr>' + headers.map(col => `<td>${row[col] ?? ''}</td>`).join('') + '</tr>'; 
-                }); 
-            } 
+            tableHtml = '<table class="clean-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+            if (viewStates.isRowSpan && bodyRows.length > 0) {
+                let lastValues = new Array(ROW_SPAN_COLUMN_COUNT).fill(null);
+                for (let i = 0; i < bodyRows.length; i++) {
+                    tableHtml += '<tr>';
+                    for (let j = 0; j < headers.length; j++) {
+                        const col = headers[j];
+                        const isSpanCol = j < ROW_SPAN_COLUMN_COUNT;
+                        if (isSpanCol && i > 0 && bodyRows[i][col] === lastValues[j]) {}
+                        else {
+                            lastValues[j] = bodyRows[i][col];
+                            let span = 1;
+                            if (isSpanCol) {
+                                for (let k = i + 1; k < bodyRows.length; k++) {
+                                    if (bodyRows[k][col] === bodyRows[i][col]) span++;
+                                    else break;
+                                }
+                            }
+                            tableHtml += `<td ${span > 1 ? `rowspan="${span}"` : ''}>${convertNewlineToBr(bodyRows[i][col])}</td>`;
+                        }
+                    }
+                    tableHtml += '</tr>';
+                }
+            } else {
+                bodyRows.forEach(row => {
+                    tableHtml += '<tr>' + headers.map(col => `<td>${convertNewlineToBr(row[col])}</td>`).join('') + '</tr>';
+                });
+            }
             tableHtml += '</tbody></table>';
         }
-        elements.resultContainer.innerHTML = tableHtml; 
+        elements.resultContainer.innerHTML = tableHtml;
     };
     
     const renderJson = () => { 

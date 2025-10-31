@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Query Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .query-form {
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        input, select, textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+        textarea {
+            min-height: 120px;
+            font-family: "Courier New", monospace;
+            resize: vertical;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #545b62;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Query Tool</h1>
+
+        <div class="query-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="db-type">資料庫類型</label>
+                    <select id="db-type">
+                        <option value="ORA">Oracle</option>
+                        <option value="SQL">MS-SQL Server</option>
+                        <option value="POST">PostgreSQL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="hostname">Hostname/IP</label>
+                    <input type="text" id="hostname" placeholder="例如: localhost">
+                </div>
+                <div class="form-group">
+                    <label for="port">Port</label>
+                    <input type="number" id="port" placeholder="1521">
+                </div>
+                <div class="form-group">
+                    <label for="sid">SID/Database Name</label>
+                    <input type="text" id="sid" placeholder="資料庫名稱">
+                </div>
+                <div class="form-group">
+                    <label for="user">使用者名稱</label>
+                    <input type="text" id="user" placeholder="使用者名稱">
+                </div>
+                <div class="form-group">
+                    <label for="password">密碼</label>
+                    <input type="password" id="password" placeholder="密碼">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="sql">SQL 查詢語句</label>
+                <textarea id="sql" placeholder="輸入 SQL 查詢語句...&#10;例如: SELECT * FROM your_table"></textarea>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="executeQuery()">查詢</button>
+                <button class="btn-secondary" onclick="clearForm()">清除</button>
+                <button class="btn-secondary" onclick="testConnection()">測試連線</button>
+                <div id="status" class="status hidden"></div>
+            </div>
+        </div>
+
+
+
+        <!-- RSFormat 會自動在這裡創建控制按鈕和結果展示 -->
+        <div id="result"></div>
+    </div>
+
+    <!-- 只需引入一個 JS 文件 -->
+    <script src="rsformat.js"></script>
+
+    <script>
+        // 全局變數：保存 RSFormat 實例
+        let formatter = null;
+
+        // 設置預設埠號
+        document.getElementById('db-type').addEventListener('change', function() {
+            const dbType = this.value;
+            const portInput = document.getElementById('port');
+            const defaultPorts = { 'ORA': 1521, 'SQL': 1433, 'POST': 5432 };
+            portInput.value = defaultPorts[dbType] || '';
+        });
+
+        // 初始化預設埠號
+        document.getElementById('db-type').dispatchEvent(new Event('change'));
+
+        // 顯示狀態消息
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'status ' + type;
+            statusDiv.textContent = message;
+        }
+
+        // 隱藏狀態消息
+        function hideStatus() {
+            document.getElementById('status').className = 'status hidden';
+        }
+
+        // 取得連線資料
+        function getConnectionData() {
+            return {
+                hostname: document.getElementById('hostname').value.trim(),
+                sid: document.getElementById('sid').value.trim(),
+                user: document.getElementById('user').value.trim(),
+                pwd: document.getElementById('password').value,
+                db_type: document.getElementById('db-type').value,
+                port: parseInt(document.getElementById('port').value) || null,
+            };
+        }
+
+        // 測試連線
+        async function testConnection() {
+            hideStatus();
+            showStatus('正在測試連線...', 'info');
+
+            const connData = getConnectionData();
+
+            if (!connData.hostname || !connData.sid || !connData.user || !connData.pwd) {
+                showStatus('請填寫所有連線欄位', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/test-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(connData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    showStatus(result.message || '連線成功！', 'success');
+                } else {
+                    throw new Error(result.detail || result.message || '連線失敗');
+                }
+            } catch (error) {
+                showStatus('連線失敗: ' + error.message, 'error');
+            }
+        }
+
+
+        // 執行查詢
+        async function executeQuery() {
+            hideStatus();
+            showStatus('查詢中...', 'info');
+
+            const connData = getConnectionData();
+            const queryData = {
+                ...connData,
+                sql: document.getElementById('sql').value.trim(),
+                max_rows: 200
+            };
+
+            // 驗證必填欄位
+            if (!queryData.hostname || !queryData.sid || !queryData.user || !queryData.pwd || !queryData.sql) {
+                showStatus('請填寫所有必填欄位', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/execute-query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(queryData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '查詢失敗');
+                }
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showStatus(`查詢成功！`, 'success');
+
+                    // 使用 RSFormat 創建完整的結果展示（包含所有控制按鈕）
+                    // 只需要這一行程式碼！
+                    formatter = RSFormat.create('#result', result.data, {
+                        columns: result.columns,
+                        showControls: true  // 顯示所有控制按鈕
+                    });
+
+                } else {
+                    throw new Error(result.message || '查詢失敗');
+                }
+
+            } catch (error) {
+                showStatus('查詢失敗: ' + error.message, 'error');
+                document.getElementById('result').innerHTML = '';
+                formatter = null;
+            }
+        }
+
+        // 清除表單
+        function clearForm() {
+            document.getElementById('sql').value = '';
+            document.getElementById('result').innerHTML = '';
+            formatter = null;
+            hideStatus();
+        }
+    </script>
+</body>
+</html>
