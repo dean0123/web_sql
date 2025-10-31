@@ -1,8 +1,8 @@
 /**
  * RSFormat.js - 零依賴的資料庫結果集格式化庫（完整版）
- * 版本: 2.1.0
+ * 版本: 2.3.0
  * 作者: Claude Code / Gemini
- * 描述: 將資料庫查詢結果格式化為多種顯示格式，並包含完整的 UI 控制器
+ * 描述: 將資料庫查詢結果格式化為多種顯示格式，並包含完整的 UI 控制器、排序與篩選功能
  *       只需一行程式碼即可創建完整的結果展示介面
  */
 
@@ -165,6 +165,18 @@
                 margin-left: 10px;
             }
 
+            .rsformat-search-wrapper {
+                margin-left: auto;
+            }
+
+            .rsformat-search-input {
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 13px;
+                width: 200px;
+            }
+
             .rsformat-container {
                 margin-top: 0.5rem;
             }
@@ -200,6 +212,26 @@
                 position: sticky;
                 top: 0;
                 z-index: 10;
+            }
+
+            .rsformat-table th.sortable {
+                cursor: pointer;
+                position: relative;
+                padding-right: 25px;
+            }
+
+            .rsformat-table th.sortable:hover {
+                background-color: #e9ecef;
+            }
+
+            .rsformat-table .sort-indicator {
+                position: absolute;
+                right: 8px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 1.1em;
+                line-height: 1;
+                color: #6c757d;
             }
 
             .rsformat-table tbody tr:hover {
@@ -256,16 +288,30 @@
         container.innerHTML = `<div class="rsformat-container"><pre class="rsformat-rowset">${escapeHtml(text)}</pre></div>`;
     }
 
-    function renderHtmlTable(container, columns, data, rowspanCount, useBr) {
+    function renderHtmlTable(container, columns, data, rowspanCount, useBr, formatter) {
         let tableHtml = '<div class="rsformat-container">';
         tableHtml += '<table class="rsformat-table"><thead><tr>';
 
+        const sortState = formatter.sortState || {};
+
         columns.forEach(col => {
-            tableHtml += `<th>${escapeHtml(col)}</th>`;
+            const isSortable = formatter.options.format === 'table';
+            const thClass = isSortable ? 'sortable' : '';
+            const dataAttr = isSortable ? `data-column="${escapeHtml(col)}"` : '';
+            
+            let indicator = '';
+            if (isSortable && col === sortState.column) {
+                if (sortState.direction === 'asc') indicator = '<span class="sort-indicator">▲</span>';
+                if (sortState.direction === 'desc') indicator = '<span class="sort-indicator">▼</span>';
+            }
+
+            tableHtml += `<th class="${thClass}" ${dataAttr}>${escapeHtml(col)}${indicator}</th>`;
         });
         tableHtml += '</tr></thead><tbody>';
 
-        if (rowspanCount > 0 && data.length > 0) {
+        if (data.length === 0) {
+            tableHtml += `<tr><td colspan="${columns.length}" style="text-align: center;">沒有符合篩選條件的資料</td></tr>`;
+        } else if (rowspanCount > 0 && data.length > 0) {
             const lastValues = new Array(rowspanCount).fill(null);
 
             for (let i = 0; i < data.length; i++) {
@@ -361,10 +407,14 @@
                 newlineToBr: options?.newlineToBr !== false
             };
 
+            this.sortState = { column: null, direction: 'none' }; // none, asc, desc
+            this.filterText = '';
+
             this.container = null;
             this.controlsContainer = null;
             this.resultContainer = null;
             this.infoDisplay = null;
+            this.searchInput = null;
 
             injectStyles();
             this.init();
@@ -388,6 +438,28 @@
             element.appendChild(this.resultContainer);
 
             this.render();
+        }
+
+        attachTableEventListeners() {
+            if (this.options.format !== 'table' || this.options.transpose) return;
+
+            const table = this.resultContainer.querySelector('.rsformat-table');
+            if (!table) return;
+
+            const header = table.querySelector('thead');
+            if (!header) return;
+
+            // 避免重複綁定
+            if (header.dataset.listenerAttached === 'true') return;
+
+            header.addEventListener('click', (e) => {
+                const th = e.target.closest('th.sortable');
+                if (th) {
+                    const columnName = th.dataset.column;
+                    this.sort(columnName);
+                }
+            });
+            header.dataset.listenerAttached = 'true';
         }
 
         createControls(parentElement) {
@@ -468,6 +540,20 @@
             this.infoDisplay.className = 'rsformat-info-inline';
             this.controlsContainer.appendChild(this.infoDisplay);
 
+            // 搜尋框
+            const searchWrapper = document.createElement('div');
+            searchWrapper.className = 'rsformat-search-wrapper';
+            this.searchInput = document.createElement('input');
+            this.searchInput.type = 'text';
+            this.searchInput.placeholder = '搜尋...';
+            this.searchInput.className = 'rsformat-search-input';
+            this.searchInput.oninput = () => {
+                this.filterText = this.searchInput.value.toLowerCase();
+                this.render();
+            };
+            searchWrapper.appendChild(this.searchInput);
+            this.controlsContainer.appendChild(searchWrapper);
+
             parentElement.appendChild(this.controlsContainer);
         }
 
@@ -511,9 +597,80 @@
             this.render();
         }
 
+        sort(columnName) {
+            const { column, direction } = this.sortState;
+            let nextDirection;
+
+            if (column !== columnName) {
+                nextDirection = 'asc';
+            } else {
+                if (direction === 'asc') nextDirection = 'desc';
+                else if (direction === 'desc') nextDirection = 'none';
+                else nextDirection = 'asc';
+            }
+            
+            this.sortState = { column: columnName, direction: nextDirection };
+            this.render();
+        }
+
+        getProcessedData() {
+            let columns = [...this.originalColumns];
+            let data = [...this.originalData];
+
+            // 1. 篩選
+            if (this.filterText) {
+                const filter = this.filterText;
+                data = data.filter(row => {
+                    return Object.values(row).some(value => 
+                        String(value).toLowerCase().includes(filter)
+                    );
+                });
+            }
+
+            // 2. 增加 ID 欄位
+            if (this.options.showId) {
+                data = addIdColumn(data);
+                columns = ['ID', ...columns];
+            }
+
+            // 3. 排序
+            const { column, direction } = this.sortState;
+            if (this.options.format === 'table' && direction !== 'none' && column) {
+                data.sort((a, b) => {
+                    const valA = a[column];
+                    const valB = b[column];
+
+                    if (valA === valB) return 0;
+                    if (valA === null || valA === undefined) return 1;
+                    if (valB === null || valB === undefined) return -1;
+
+                    if (typeof valA === 'number' && typeof valB === 'number') {
+                        return direction === 'asc' ? valA - valB : valB - valA;
+                    }
+
+                    const strA = String(valA).toLowerCase();
+                    const strB = String(valB).toLowerCase();
+
+                    if (strA < strB) return direction === 'asc' ? -1 : 1;
+                    if (strA > strB) return direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            return { processedData: data, columns };
+        }
+
         render() {
+            const { processedData, columns } = this.getProcessedData();
+
             if (this.infoDisplay) {
-                this.infoDisplay.textContent = `共回傳 ${this.originalData.length} 筆資料`;
+                const total = this.originalData.length;
+                const shown = processedData.length;
+                if (total === shown) {
+                    this.infoDisplay.textContent = `共 ${total} 筆資料`;
+                } else {
+                    this.infoDisplay.textContent = `共 ${total} 筆資料，顯示 ${shown} 筆`;
+                }
             }
 
             if (!this.originalData || this.originalData.length === 0) {
@@ -521,45 +678,39 @@
                 return;
             }
 
-            let columns = [...this.originalColumns];
-            let processedData = [...this.originalData];
-
-            if (this.options.showId) {
-                processedData = addIdColumn(processedData);
-                columns = ['ID', ...columns];
-            }
-
             if (this.options.transpose) {
-                const transposed = transposeData(columns, processedData);
+                // 轉置模式下，使用未篩選的完整資料，但仍套用ID選項
+                let originalCols = [...this.originalColumns];
+                let originalProcData = [...this.originalData];
+                if (this.options.showId) {
+                    originalProcData = addIdColumn(originalProcData);
+                    originalCols = ['ID', ...originalCols];
+                }
+                const transposed = transposeData(originalCols, originalProcData);
                 renderTransposedTable(this.resultContainer, transposed.headers, transposed.bodyData, this.options.newlineToBr);
-                return;
+            } else {
+                switch (this.options.format) {
+                    case 'rowset':
+                        renderRowSet(this.resultContainer, columns, processedData);
+                        break;
+                    case 'table':
+                        renderHtmlTable(this.resultContainer, columns, processedData, this.options.rowspan, this.options.newlineToBr, this);
+                        break;
+                    case 'json':
+                        renderJson(this.resultContainer, processedData);
+                        break;
+                    default:
+                        this.resultContainer.innerHTML = `<div class="rsformat-error">不支援的格式: ${this.options.format}</div>`;
+                }
             }
-
-            switch (this.options.format) {
-                case 'rowset':
-                    renderRowSet(this.resultContainer, columns, processedData);
-                    break;
-                case 'table':
-                    renderHtmlTable(this.resultContainer, columns, processedData, this.options.rowspan, this.options.newlineToBr);
-                    break;
-                case 'json':
-                    renderJson(this.resultContainer, processedData);
-                    break;
-                default:
-                    this.resultContainer.innerHTML = `<div class="rsformat-error">不支援的格式: ${this.options.format}</div>`;
-            }
+            
+            this.attachTableEventListeners();
         }
 
         exportCsv(filename) {
             filename = filename || 'export_' + new Date().toISOString().slice(0,10) + '.csv';
 
-            let columns = [...this.originalColumns];
-            let processedData = [...this.originalData];
-
-            if (this.options.showId) {
-                processedData = addIdColumn(processedData);
-                columns = ['ID', ...columns];
-            }
+            const { processedData, columns } = this.getProcessedData();
 
             let csvContent = '';
             csvContent += columns.map(h => `"${String(h ?? '').replace(/"/g, '""')}"`).join(',') + '\r\n';
@@ -586,6 +737,9 @@
         setData(data, columns) {
             this.originalData = data || [];
             this.originalColumns = columns || extractColumns(this.originalData);
+            this.sortState = { column: null, direction: 'none' };
+            this.filterText = '';
+            if (this.searchInput) this.searchInput.value = '';
             this.render();
         }
 
@@ -657,7 +811,7 @@
         render: render,
         exportCsv: exportCsv,
 
-        version: '2.1.0'
+        version: '2.3.0'
     };
 
     if (typeof module !== 'undefined' && module.exports) {

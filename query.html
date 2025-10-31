@@ -184,6 +184,10 @@
 
             <div class="button-group">
                 <button class="btn-primary" onclick="executeQuery()">查詢</button>
+                <div class="form-group">
+                    <label for="max-rows" style="margin-bottom: 0;">最多筆數</label>
+                    <input type="number" id="max-rows" value="200" style="padding: 6px; font-size: 14px; width: 80px;">
+                </div>
                 <button class="btn-secondary" onclick="clearForm()">清除</button>
                 <button class="btn-secondary" onclick="testConnection()">測試連線</button>
                 <div id="status" class="status hidden"></div>
@@ -200,19 +204,49 @@
     <script src="rsformat.js"></script>
 
     <script>
-        // 全局變數：保存 RSFormat 實例
+        // 全域變數：保存 RSFormat 實例
         let formatter = null;
+
+        // === 表單資料存取 ===
+        function saveFormDetails(includeSql) {
+            const data = getConnectionData();
+            data.pwd = document.getElementById('password').value;
+            if (includeSql) {
+                data.sql = document.getElementById('sql').value;
+            }
+            
+            // 從現有儲存中讀取，避免覆蓋掉未包含的 sql
+            const existingData = JSON.parse(localStorage.getItem('formDetails') || '{}');
+            if (includeSql) {
+                existingData.sql = data.sql;
+            }
+
+            localStorage.setItem('formDetails', JSON.stringify({...existingData, ...data}));
+        }
+
+        function loadFormDetails() {
+            const savedData = localStorage.getItem('formDetails');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                document.getElementById('db-type').value = data.db_type || 'ORA';
+                document.getElementById('hostname').value = data.hostname || '';
+                document.getElementById('port').value = data.port || '';
+                document.getElementById('sid').value = data.sid || '';
+                document.getElementById('user').value = data.user || '';
+                document.getElementById('password').value = data.pwd || '';
+                document.getElementById('sql').value = data.sql || '';
+            }
+        }
 
         // 設置預設埠號
         document.getElementById('db-type').addEventListener('change', function() {
             const dbType = this.value;
             const portInput = document.getElementById('port');
-            const defaultPorts = { 'ORA': 1521, 'SQL': 1433, 'POST': 5432 };
-            portInput.value = defaultPorts[dbType] || '';
+            if (!portInput.value) {
+                const defaultPorts = { 'ORA': 1521, 'SQL': 1433, 'POST': 5432 };
+                portInput.value = defaultPorts[dbType] || '';
+            }
         });
-
-        // 初始化預設埠號
-        document.getElementById('db-type').dispatchEvent(new Event('change'));
 
         // 顯示狀態消息
         function showStatus(message, type) {
@@ -261,6 +295,7 @@
 
                 if (response.ok && result.status === 'success') {
                     showStatus(result.message || '連線成功！', 'success');
+                    saveFormDetails(false); // 測試成功後儲存(不含SQL)
                 } else {
                     throw new Error(result.detail || result.message || '連線失敗');
                 }
@@ -279,7 +314,7 @@
             const queryData = {
                 ...connData,
                 sql: document.getElementById('sql').value.trim(),
-                max_rows: 200
+                max_rows: parseInt(document.getElementById('max-rows').value, 10) || 200
             };
 
             // 驗證必填欄位
@@ -304,6 +339,7 @@
 
                 if (result.status === 'success') {
                     showStatus(`查詢成功！`, 'success');
+                    saveFormDetails(true); // 查詢成功後儲存(含SQL)
 
                     // 使用 RSFormat 創建完整的結果展示（包含所有控制按鈕）
                     // 只需要這一行程式碼！
@@ -330,6 +366,14 @@
             formatter = null;
             hideStatus();
         }
+
+        // 初始化頁面
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFormDetails();
+            // 初始化預設埠號
+            document.getElementById('db-type').dispatchEvent(new Event('change'));
+        });
+
     </script>
 </body>
 </html>
