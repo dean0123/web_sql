@@ -188,6 +188,10 @@
                     <label for="max-rows" style="margin-bottom: 0;">最多筆數</label>
                     <input type="number" id="max-rows" value="200" style="padding: 6px; font-size: 14px; width: 80px;">
                 </div>
+                <select id="saved-queries" style="min-width: 220px; padding: 8px;">
+                    <option value="">— 選擇已儲存查詢 —</option>
+                </select>
+                <button class="btn-secondary" id="save-query-btn" onclick="saveCurrentQuery()">儲存查詢</button>
                 <button class="btn-secondary" onclick="clearForm()">清除</button>
                 <button class="btn-secondary" onclick="testConnection()">測試連線</button>
                 <div id="status" class="status hidden"></div>
@@ -361,10 +365,122 @@
 
         // 清除表單
         function clearForm() {
-            document.getElementById('sql').value = '';
+            const sqlBox = document.getElementById('sql');
+            const savedSelect = document.getElementById('saved-queries');
+            const saved = getSavedQueries();
+            const selectedName = savedSelect ? savedSelect.value : '';
+
+            // 清空 SQL 語句
+            sqlBox.value = '';
             document.getElementById('result').innerHTML = '';
             formatter = null;
             hideStatus();
+
+            // 若當前為已儲存查詢名稱，詢問是否刪除該項
+            if (selectedName && saved[selectedName]) {
+                const shouldDelete = confirm(`是否刪除已儲存查詢「${selectedName}」？`);
+                if (shouldDelete) {
+                    delete saved[selectedName];
+                    setSavedQueries(saved);
+                    refreshSavedQueriesSelect();
+                    showStatus('已刪除查詢：' + selectedName, 'success');
+                } else {
+                    // 取消刪除：只清除 SQL 輸入框，不動儲存項與結果
+                }
+                return;
+            }
+
+        }
+
+        // === 儲存/載入查詢（localStorage） ===
+        function getSavedQueries() {
+            try {
+                return JSON.parse(localStorage.getItem('savedQueries') || '{}');
+            } catch {
+                return {};
+            }
+        }
+
+        function setSavedQueries(obj) {
+            localStorage.setItem('savedQueries', JSON.stringify(obj));
+        }
+
+        function refreshSavedQueriesSelect(selectedName) {
+            const select = document.getElementById('saved-queries');
+            if (!select) return;
+            const data = getSavedQueries();
+            const names = Object.keys(data);
+            names.sort((a, b) => a.localeCompare(b, 'zh-Hant', { sensitivity: 'base' }));
+
+            // 重建選單
+            select.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '— 選擇已儲存查詢 —';
+            select.appendChild(placeholder);
+
+            for (const name of names) {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            }
+
+            if (selectedName && names.includes(selectedName)) {
+                select.value = selectedName;
+            } else {
+                select.value = '';
+            }
+        }
+
+        function saveCurrentQuery() {
+            const name = prompt('請輸入查詢名稱');
+            if (name === null) return; // 使用者取消
+            const trimmed = (name || '').trim();
+            if (!trimmed) {
+                showStatus('未儲存：名稱不可為空', 'error');
+                return;
+            }
+
+            const conn = getConnectionData();
+            const sql = (document.getElementById('sql').value || '').trim();
+            if (!conn.hostname || !conn.sid || !conn.user || !conn.pwd || !sql) {
+                showStatus('請先填寫完整連線與 SQL', 'error');
+                return;
+            }
+
+            const saved = getSavedQueries();
+            if (saved[trimmed]) {
+                const ok = confirm('同名已存在，是否覆蓋？');
+                if (!ok) return;
+            }
+
+            saved[trimmed] = { ...conn, sql };
+            setSavedQueries(saved);
+            refreshSavedQueriesSelect(trimmed);
+            showStatus('已儲存查詢：' + trimmed, 'success');
+        }
+
+        function applySavedQuery(name) {
+            if (!name) return;
+            const saved = getSavedQueries();
+            const item = saved[name];
+            if (!item) {
+                showStatus('找不到查詢：' + name, 'error');
+                return;
+            }
+
+            document.getElementById('db-type').value = item.db_type || 'ORA';
+            document.getElementById('hostname').value = item.hostname || '';
+            document.getElementById('port').value = item.port || '';
+            document.getElementById('sid').value = item.sid || '';
+            document.getElementById('user').value = item.user || '';
+            document.getElementById('password').value = item.pwd || '';
+            document.getElementById('sql').value = item.sql || '';
+
+            // 讓 DB 類型的預設埠處理邏輯生效（若欄位為空）
+            document.getElementById('db-type').dispatchEvent(new Event('change'));
+            showStatus('已載入查詢：' + name, 'info');
         }
 
         // 初始化頁面
@@ -372,6 +488,12 @@
             loadFormDetails();
             // 初始化預設埠號
             document.getElementById('db-type').dispatchEvent(new Event('change'));
+            // 初始化儲存查詢下拉
+            refreshSavedQueriesSelect();
+            const savedSelect = document.getElementById('saved-queries');
+            if (savedSelect) {
+                savedSelect.addEventListener('change', (e) => applySavedQuery(e.target.value));
+            }
         });
 
     </script>
